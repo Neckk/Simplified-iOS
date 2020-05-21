@@ -177,7 +177,7 @@
 //    }
 //
 //
-//    
+//
 //    func validateCredentials()
 //    {
 //        if let authToken = self.cleverAuth?.authToken,

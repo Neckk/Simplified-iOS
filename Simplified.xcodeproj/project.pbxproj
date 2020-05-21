@@ -34,6 +34,7 @@
 		08A352241BDE8E640040BF1D /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 08A352231BDE8E640040BF1D /* Security.framework */; };
 		08A352261BDE8E700040BF1D /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 08A352251BDE8E700040BF1D /* SystemConfiguration.framework */; };
 		08A352271BDE91B80040BF1D /* libRDServices.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A49C25461AE05A2600D63B89 /* libRDServices.a */; };
+		08E3BF9D247574B800146D04 /* NYPLSignInOauthLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08E3BF9C247574B800146D04 /* NYPLSignInOauthLogic.swift */; };
 		11068C55196DD37900E8A94B /* NYPLNull.m in Sources */ = {isa = PBXBuildFile; fileRef = 11068C54196DD37900E8A94B /* NYPLNull.m */; };
 		11078357198160A50071AB1E /* NYPLBookDownloadFailedCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 11078356198160A50071AB1E /* NYPLBookDownloadFailedCell.m */; };
 		1107835E19816E3D0071AB1E /* UIView+NYPLViewAdditions.m in Sources */ = {isa = PBXBuildFile; fileRef = 1107835D19816E3D0071AB1E /* UIView+NYPLViewAdditions.m */; };
@@ -330,6 +331,7 @@
 		08A352211BDE8E560040BF1D /* libicucore.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libicucore.tbd; path = usr/lib/libicucore.tbd; sourceTree = SDKROOT; };
 		08A352231BDE8E640040BF1D /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		08A352251BDE8E700040BF1D /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
+		08E3BF9C247574B800146D04 /* NYPLSignInOauthLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NYPLSignInOauthLogic.swift; sourceTree = "<group>"; };
 		11068C53196DD37900E8A94B /* NYPLNull.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NYPLNull.h; sourceTree = "<group>"; };
 		11068C54196DD37900E8A94B /* NYPLNull.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NYPLNull.m; sourceTree = "<group>"; };
 		11078355198160A50071AB1E /* NYPLBookDownloadFailedCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NYPLBookDownloadFailedCell.h; sourceTree = "<group>"; };
@@ -1013,6 +1015,7 @@
 				111E75791A80165C00718AD7 /* NYPLSettingsSplitViewController.m */,
 				E6BA02B71DE4B6F600F76404 /* RemoteHTMLViewController.swift */,
 				731A5B1124621F2B00B5E663 /* NYPLSignInBusinessLogic.swift */,
+				08E3BF9C247574B800146D04 /* NYPLSignInOauthLogic.swift */,
 				087FD173246B5B54004843EF /* CleverLoginViewcontroller.swift */,
 			);
 			name = Settings;
@@ -1711,6 +1714,7 @@
 				B51C1DFA2285FDF9003B49A5 /* OPDS2CatalogsFeed.swift in Sources */,
 				2D62568B1D412BCB0080A81F /* BundledHTMLViewController.swift in Sources */,
 				110AF8961961D94D004887C3 /* NYPLBookDetailView.m in Sources */,
+				08E3BF9D247574B800146D04 /* NYPLSignInOauthLogic.swift in Sources */,
 				0813875A1BC5767F003DEA6A /* UIButton+NYPLAppearanceAdditions.m in Sources */,
 				1139DA6519C7755D00A07810 /* NYPLBookCoverRegistry.m in Sources */,
 				11119742198827850014462F /* NYPLBookDetailDownloadingView.m in Sources */,

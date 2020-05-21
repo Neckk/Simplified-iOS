@@ -13,6 +13,12 @@ class NYPLSignInBusinessLogic: NSObject {
   @objc let libraryAccountID: String
   private let permissionsCheckLock = NSLock()
 
+    @objc var isCurrentlySigningIn: Bool = false
+    @objc var session: URLSession!
+
+  private var authToken: String?
+  private var patronInfo: AnyObject?
+
   @objc init(libraryAccountID: String) {
     self.libraryAccountID = libraryAccountID
     super.init()
@@ -124,66 +130,127 @@ class NYPLSignInBusinessLogic: NSObject {
     }
   }
 
-    @objc func handleRedirectURL(url: URL) {
+    @objc func validateCredentials() {
+        guard let profilePath = libraryAccount?.details?.userProfileUrl else { return }
+        guard let profileURL = URL(string: profilePath) else { return }
 
-        if(!url.absoluteString.hasPrefix("open-ebooks-clever")
-            || !(url.absoluteString.contains("error") || url.absoluteString.contains("access_token")))
+        var request = URLRequest(url: profileURL)
+        request.timeoutInterval = 20
+
+        if
+            libraryAccount?.details?.oauthIntermediaryUrl != nil,
+            let authToken = self.authToken
         {
-            // The server did not give us what we expected (e.g. we received a 500),
-            // thus we show an error message and stop handling the result.
-
-//            self.showErrorMessage(nil)
-            return
+            let authenticationValue = "Bearer \(authToken)"
+            request.addValue(authenticationValue, forHTTPHeaderField: "Authorization")
         }
 
-        let fragment = url.fragment
-        var kvpairs:[String:String] = [String:String]()
-        let components = fragment?.components(separatedBy: "&")
-        for component in components!
-        {
-            var kv = component.components(separatedBy: "=")
-            if kv.count == 2
-            {
-                kvpairs[kv[0]] = kv[1]
+        isCurrentlySigningIn = true
+
+        let task = session.dataTask(with: request) { [weak self] (data, response, error) in
+            self?.isCurrentlySigningIn = false
+            if (response as? HTTPURLResponse)?.statusCode == 200 {
+//#if FEATURE_DRM_CONNECTOR
+                guard let data = data else { return }
+
+                let pDoc: UserProfileDocument
+                do {
+                    pDoc = try UserProfileDocument.fromData(data)
+                } catch {
+                    NYPLErrorLogger.logUserProfileDocumentError(error: error as NSError)
+//                    [self authorizationAttemptDidFinish:NO error:[NSError errorWithDomain:@"NYPLAuth" code:20 userInfo:@{ @"message":@"Error parsing user profile doc" }]]
+                    return
+                }
+
+                if let authorizationID = pDoc.authorizationIdentifier {
+                    NYPLUserAccount.sharedAccount().setAuthorizationIdentifier(authorizationID)
+                } else {
+//                    NYPLLOG(@"Authorization ID (Barcode String) was nil.")
+                }
+
+                guard let firstDrm = pDoc.drm?.first,
+                    let clientToken = firstDrm.clientToken,
+                    let vendor = firstDrm.vendor else {
+//                        NYPLLOG(@"Login Failed: No Licensor Token received or parsed from user profile document");
+//                        [self authorizationAttemptDidFinish:NO error:[NSError errorWithDomain:@"NYPLAuth" code:20 userInfo:@{ @"message":@"Trouble locating DRMs in profile doc" }]];
+
+                        return
+                }
+
+                NYPLUserAccount.sharedAccount().setLicensor(firstDrm.licensor)
+
+                var licensorItems = clientToken.replacingOccurrences(of: "\n", with: "").components(separatedBy: "|")
+                let tokenPassword = licensorItems.popLast()
+                let tokenUsername = licensorItems.joined(separator: "|")
+
+                // szyjson is it the same as in vendor?
+                let licensorVendor = NYPLUserAccount.sharedAccount().licensor?["vendor"]
+
+//                NYPLLOG("***DRM Auth/Activation Attempt***");
+//                NYPLLOG_F("\nLicensor: %@\n",pDoc.drm[0].licensor);
+//                NYPLLOG_F("Token Username: %@\n",tokenUsername);
+//                NYPLLOG_F("Token Password: %@\n",tokenPassword);
+
+                let completion: (Bool, Error?, String?, String?) -> Void
+
+                completion = { success, error, deviceID, userID in
+                    OperationQueue.main.addOperation {
+                        NSObject.cancelPreviousPerformRequests(withTarget: self)
+                    }
+
+//                    NYPLLOG_F(@"Activation Success: %@\n", success ? @"Yes" : @"No");
+//                    NYPLLOG_F(@"Error: %@\n",error.localizedDescription);
+//                    NYPLLOG_F(@"UserID: %@\n",userID);
+//                    NYPLLOG_F(@"DeviceID: %@\n",deviceID);
+//                    NYPLLOG(@"***DRM Auth/Activation Completion***");
+
+                    if let userID = userID, let deviceID = deviceID, success {
+                        OperationQueue.main.addOperation {
+                            NYPLUserAccount.sharedAccount().setUserID(userID)
+                            NYPLUserAccount.sharedAccount().setDeviceID(deviceID)
+                        }
+                    } else {
+                        // szyjson is it the same as in self.currentAccount.name?
+                        NYPLErrorLogger.logLocalAuthFailed(error: error as NSError?, libraryName: AccountsManager.shared.currentAccount?.name)
+                    }
+
+//                    [self authorizationAttemptDidFinish:success error:error];
+
+                }
+
+//                NYPLADEPT.sharedInstance().authorizeWithVendorID(licensorVendor, username:tokenUsername, password:tokenPassword, completion: completion)
+
+//                [self performSelector:@selector(dismissAfterUnexpectedDRMDelay) withObject:self afterDelay:25];
+
+
+//#else
+////                [self authorizationAttemptDidFinish:YES error:nil];
+//#endif
+
             }
-        }
 
-        if let error = kvpairs["error"]
-        {
-            if let errorJson = error.replacingOccurrences(of: "+", with: " ").removingPercentEncoding?.parseJSONString
-            {
-                debugPrint(errorJson)
-
-//                self.showErrorMessage((errorJson as? [String : Any])?["title"] as? String)
-
-            }
-        }
-
-        if let auth_token = kvpairs["access_token"],
-            let patron_info = kvpairs["patron_info"]
-        {
-            if let patronJson = patron_info.replacingOccurrences(of: "+", with: " ").removingPercentEncoding?.parseJSONString
-            {
-                
-            }
         }
     }
 
+    @objc func authorizationAttemptDidFinish(success: Bool, error: Error?) {
+        OperationQueue.main.addOperation { [weak self] in
+//            [self removeActivityTitle];
+//            [[UIApplication sharedApplication] endIgnoringInteractionEvents];
+//            UIApplication.shared.endIgnoringInteractionEvents()
 
-}
-
-extension NSString {
-
-    @objc var parseJSONString: AnyObject? {
-
-        let data = self.data(using: String.Encoding.utf8.rawValue, allowLossyConversion: false)
-
-        if let jsonData = data {
-            // Will return an object or nil if JSON decoding fails
-            return try! JSONSerialization.jsonObject(with: jsonData, options: JSONSerialization.ReadingOptions.mutableContainers) as AnyObject?
-        } else {
-            // Lossless conversion of the string was not possible
-            return nil
+            if success {
+                let oauthURL = AccountsManager.shared.currentAccount?.details?.oauthIntermediaryUrl
+                if
+                    let authToken = self?.authToken,
+                    let patron = self?.patronInfo as? [String: Any],
+                    oauthURL != nil
+                {
+                    NYPLUserAccount.sharedAccount().setAuthToken(authToken)
+                    NYPLUserAccount.sharedAccount().setPatron(patron)
+                } else {
+                    NYPLUserAccount.sharedAccount().setBarcode(<#T##barcode: String##String#>, PIN: <#T##String#>)
+                }
+            }
         }
     }
 }

@@ -58,6 +58,7 @@ typedef NS_ENUM(NSInteger, Section) {
 @property NYPLUserAccountFrontEndValidation *frontEndValidator;
 @property (nonatomic) NYPLSignInBusinessLogic *businessLogic;
 @property (nonatomic) NSString *authToken;
+@property (nonatomic) NSString *patronInfo;
 
 // networking
 @property (nonatomic) NSURLSession *session;
@@ -946,7 +947,7 @@ completionHandler:(void (^)(void))handler
   
   request.timeoutInterval = 20.0;
 
-    if (self.currentAccount.details.oauthIntermediaryUrl != nil) {
+    if (self.currentAccount.details.oauthIntermediaryUrl) {
         NSString *authToken = self.authToken;
         if (authToken != nil) {
             NSString *authenticationValue = [@"Bearer " stringByAppendingString: authToken];

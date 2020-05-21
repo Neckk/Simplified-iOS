@@ -70,7 +70,7 @@ import Foundation
     let dateFormatter = DateFormatter()
     dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'"
     jsonDecoder.dateDecodingStrategy = .formatted(dateFormatter)
-    
+
     do {
       return try jsonDecoder.decode(UserProfileDocument.self, from: data)
     } catch let DecodingError.dataCorrupted(context) {
