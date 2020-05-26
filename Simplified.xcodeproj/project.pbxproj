@@ -36,6 +36,8 @@
 		08A352241BDE8E640040BF1D /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 08A352231BDE8E640040BF1D /* Security.framework */; };
 		08A352261BDE8E700040BF1D /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 08A352251BDE8E700040BF1D /* SystemConfiguration.framework */; };
 		08A352271BDE91B80040BF1D /* libRDServices.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A49C25461AE05A2600D63B89 /* libRDServices.a */; };
+		08C481A0247C8FA8003A6723 /* NYPLAccountSignInViewControllerSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C4819F247C8FA8003A6723 /* NYPLAccountSignInViewControllerSwift.swift */; };
+		08C481A2247C95DB003A6723 /* ScrollKeyboardBehaviour.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C481A1247C95DB003A6723 /* ScrollKeyboardBehaviour.swift */; };
 		11068C55196DD37900E8A94B /* NYPLNull.m in Sources */ = {isa = PBXBuildFile; fileRef = 11068C54196DD37900E8A94B /* NYPLNull.m */; };
 		11078357198160A50071AB1E /* NYPLBookDownloadFailedCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 11078356198160A50071AB1E /* NYPLBookDownloadFailedCell.m */; };
 		1107835E19816E3D0071AB1E /* UIView+NYPLViewAdditions.m in Sources */ = {isa = PBXBuildFile; fileRef = 1107835D19816E3D0071AB1E /* UIView+NYPLViewAdditions.m */; };
@@ -333,6 +335,8 @@
 		08A352211BDE8E560040BF1D /* libicucore.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libicucore.tbd; path = usr/lib/libicucore.tbd; sourceTree = SDKROOT; };
 		08A352231BDE8E640040BF1D /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		08A352251BDE8E700040BF1D /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
+		08C4819F247C8FA8003A6723 /* NYPLAccountSignInViewControllerSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NYPLAccountSignInViewControllerSwift.swift; sourceTree = "<group>"; };
+		08C481A1247C95DB003A6723 /* ScrollKeyboardBehaviour.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollKeyboardBehaviour.swift; sourceTree = "<group>"; };
 		11068C53196DD37900E8A94B /* NYPLNull.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NYPLNull.h; sourceTree = "<group>"; };
 		11068C54196DD37900E8A94B /* NYPLNull.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NYPLNull.m; sourceTree = "<group>"; };
 		11078355198160A50071AB1E /* NYPLBookDownloadFailedCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NYPLBookDownloadFailedCell.h; sourceTree = "<group>"; };
@@ -773,6 +777,15 @@
 			name = CardCreator;
 			sourceTree = "<group>";
 		};
+		08C4819E247C8F90003A6723 /* Sign In */ = {
+			isa = PBXGroup;
+			children = (
+				08C4819F247C8FA8003A6723 /* NYPLAccountSignInViewControllerSwift.swift */,
+				08C481A1247C95DB003A6723 /* ScrollKeyboardBehaviour.swift */,
+			);
+			name = "Sign In";
+			sourceTree = "<group>";
+		};
 		110AF8881961D652004887C3 /* My Books */ = {
 			isa = PBXGroup;
 			children = (
@@ -1207,6 +1220,7 @@
 		A823D816192BABA400B55DE2 /* Simplified */ = {
 			isa = PBXGroup;
 			children = (
+				08C4819E247C8F90003A6723 /* Sign In */,
 				110AF8891961D66C004887C3 /* Additions */,
 				110AF8901961D822004887C3 /* Book */,
 				0345BFEE1DBF031B00398B6F /* CardCreator */,
@@ -1464,7 +1478,7 @@
 						TestTargetID = A823D80C192BABA400B55DE2;
 					};
 					A823D80C192BABA400B55DE2 = {
-						DevelopmentTeam = 95MG2VV3YK;
+						DevelopmentTeam = 7262U6ST2R;
 						LastSwiftMigration = 1130;
 						ProvisioningStyle = Automatic;
 						SystemCapabilities = {
@@ -1718,6 +1732,7 @@
 				1139DA6519C7755D00A07810 /* NYPLBookCoverRegistry.m in Sources */,
 				11119742198827850014462F /* NYPLBookDetailDownloadingView.m in Sources */,
 				2DFAC8ED1CD8DDD1003D9EC0 /* NYPLOPDSCategory.m in Sources */,
+				08C481A0247C8FA8003A6723 /* NYPLAccountSignInViewControllerSwift.swift in Sources */,
 				11068C55196DD37900E8A94B /* NYPLNull.m in Sources */,
 				1111973C19880E8D0014462F /* NYPLLinearView.m in Sources */,
 				11396FB9193D289100E16EE8 /* NSDate+NYPLDateAdditions.m in Sources */,
@@ -1773,6 +1788,7 @@
 				7384C802242BCC4800D5F960 /* Date+NYPLAdditions.swift in Sources */,
 				B51C1E0422861C1A003B49A5 /* OPDS2AuthenticationDocument.swift in Sources */,
 				112C694D197301FE00C48F95 /* NYPLBookRegistryRecord.m in Sources */,
+				08C481A2247C95DB003A6723 /* ScrollKeyboardBehaviour.swift in Sources */,
 				5DD5674522B303DF001F0C83 /* NYPLDeveloperSettingsTableViewController.swift in Sources */,
 				E627B554216D4A9700A7D1D5 /* NYPLBookContentType.m in Sources */,
 				2D754BC22002F1B10061D34F /* NYPLOPDSIndirectAcquisition.m in Sources */,
@@ -2070,11 +2086,8 @@
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES_ERROR;
 				CODE_SIGN_ENTITLEMENTS = Simplified/SimplyE.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 0;
-				DEVELOPMENT_TEAM = 95MG2VV3YK;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 7262U6ST2R;
 				ENABLE_BITCODE = NO;

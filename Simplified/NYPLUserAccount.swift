@@ -12,12 +12,12 @@ extension Notification.Name {
 
 private enum StorageKey: String {
   case authorizationIdentifier = "NYPLAccountAuthorization"
-  case barcode = "NYPLAccountBarcode" // legacy
-  case PIN = "NYPLAccountPIN" // legacy
+  case barcode = "NYPLAccountBarcode" // legacy, replaced with .credentials
+  case PIN = "NYPLAccountPIN" // legacy, replaced with .credentials
   case adobeToken = "NYPLAccountAdobeTokenKey"
   case licensor = "NYPLAccountLicensorKey"
   case patron = "NYPLAccountPatronKey"
-  case authToken = "NYPLAccountAuthTokenKey" // legacy
+  case authToken = "NYPLAccountAuthTokenKey" // legacy, replaced with .credentials
   case adobeVendor = "NYPLAccountAdobeVendorKey"
   case provider = "NYPLAccountProviderKey"
   case userID = "NYPLAccountUserIDKey"
@@ -163,7 +163,7 @@ private enum StorageKey: String {
   }
   
   func hasCredentials() -> Bool {
-    return hasAuthToken() || hasBarcodeAndPIN()
+    return credentials != nil
   }
 
   // MARK: - Legacy
