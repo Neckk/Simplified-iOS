@@ -473,7 +473,7 @@ static const NSInteger sSection1Sync = 1;
   } else {
     [[NYPLMyBooksDownloadCenter sharedDownloadCenter] reset:self.selectedAccountId];
     [[NYPLBookRegistry sharedRegistry] reset:self.selectedAccountId];
-    [[NYPLAccount sharedAccount:self.selectedAccountId] removeAll];
+    [[NYPLUserAccount sharedAccount:self.selectedAccountId] removeAll];
     [self setupTableData];
     [self.tableView reloadData];
     [self removeActivityTitle];
@@ -812,8 +812,8 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
         [[CardCreatorConfiguration alloc]
          initWithEndpointURL:self.selectedAccount.details.signUpUrl ?: APIKeys.cardCreatorEndpointURL
          endpointVersion:[APIKeys cardCreatorVersion]
-         endpointUsername:NYPLSecrets.cardCreatorUsername
-         endpointPassword:NYPLSecrets.cardCreatorPassword
+         endpointUsername:APIKeys.cardCreatorUsername
+         endpointPassword:APIKeys.cardCreatorPassword
          requestTimeoutInterval:self.businessLogic.requestTimeoutInterval
          completionHandler:^(NSString *const username, NSString *const PIN, BOOL const userInitiated) {
           if (userInitiated) {

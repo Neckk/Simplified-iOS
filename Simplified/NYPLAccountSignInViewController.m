@@ -291,8 +291,8 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
         [[CardCreatorConfiguration alloc]
          initWithEndpointURL:self.currentAccount.details.signUpUrl ?: APIKeys.cardCreatorEndpointURL
          endpointVersion:[APIKeys cardCreatorVersion]
-         endpointUsername:NYPLSecrets.cardCreatorUsername
-         endpointPassword:NYPLSecrets.cardCreatorPassword
+         endpointUsername:APIKeys.cardCreatorUsername
+         endpointPassword:APIKeys.cardCreatorPassword
          requestTimeoutInterval:20.0
          completionHandler:^(NSString *const username, NSString *const PIN, BOOL const userInitiated) {
           if (userInitiated) {

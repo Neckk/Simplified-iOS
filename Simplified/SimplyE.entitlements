@@ -4,7 +4,7 @@
 <dict>
 	<key>keychain-access-groups</key>
 	<array>
-		<string>7262U6ST2R.org.nypl.labs.SharedKeychainGroup</string>
+		<string>$(AppIdentifierPrefix)7262U6ST2R.com.skyneck.SAML-Test-app</string>
 	</array>
 </dict>
 </plist>
