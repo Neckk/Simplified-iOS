@@ -3,7 +3,8 @@ import Foundation
 let currentAccountIdentifierKey  = "NYPLCurrentAccountIdentifier"
 
 private let betaUrl = URL(string: "https://libraryregistry.librarysimplified.org/libraries/qa")!
-private let prodUrl = URL(string: "https://libraryregistry.librarysimplified.org/libraries")!
+private let prodUrl = URL(string: "https://libraryregistry.librarysimplified.org/libraries/qa")!
+//private let prodUrl = URL(string: "https://libraryregistry.librarysimplified.org/libraries")!
 private let betaUrlHash = betaUrl.absoluteString.md5().base64EncodedStringUrlSafe().trimmingCharacters(in: ["="])
 private let prodUrlHash = prodUrl.absoluteString.md5().base64EncodedStringUrlSafe().trimmingCharacters(in: ["="])
 
