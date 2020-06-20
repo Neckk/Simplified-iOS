@@ -681,6 +681,11 @@ didCompleteWithError:(NSError *)error
 
 - (void)startDownloadForBook:(NYPLBook *const)book
 {
+  [self startDownloadForBook:book withRequest:nil];
+}
+
+- (void)startDownloadForBook:(NYPLBook *const)book withRequest:(NSURLRequest *)initedRequest
+{
   NYPLBookState state = [[NYPLBookRegistry sharedRegistry]
                          stateForIdentifier:book.identifier];
   
@@ -709,6 +714,8 @@ didCompleteWithError:(NSError *)error
       break;
     case NYPLBookStateHolding:
       break;
+    case NYPLBookStateSAMLStarted:
+      break;
     case NYPLBookStateDownloadSuccessful:
       // fallthrough
     case NYPLBookStateUsed:
@@ -725,8 +732,23 @@ didCompleteWithError:(NSError *)error
     } else {
       // Actually download the book.
       NSURL *URL = book.defaultAcquisition.hrefURL;
-      NSURLRequest *const request = [NYPLNetworkExecutor bearerAuthorizedWithRequest:[NSURLRequest requestWithURL:URL]];
-      
+
+//      if (NYPLUserAccount.sharedAccount.authDefinition.selectedSamlIdp) {
+//        NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:URL resolvingAgainstBaseURL:true];
+//
+//        // add params
+//        NSURLQueryItem *redirect_uri = [[NSURLQueryItem alloc] initWithName:@"redirect_uri" value:@"https://skyneck.pl/login"];
+//        urlComponents.queryItems = [[[NSArray new] arrayByAddingObjectsFromArray:urlComponents.queryItems] arrayByAddingObject:redirect_uri];
+//        URL = urlComponents.URL;
+//      }
+
+      NSURLRequest *request;
+      if (initedRequest) {
+        request = initedRequest;
+      } else {
+        request = [NYPLNetworkExecutor bearerAuthorizedWithRequest:[NSURLRequest requestWithURL:URL]];
+      }
+
       if(!request.URL) {
         // Originally this code just let the request fail later on, but apparently resuming an
         // NSURLSessionDownloadTask created from a request with a nil URL pathetically results in a
@@ -736,32 +758,71 @@ didCompleteWithError:(NSError *)error
         return;
       }
 
-      NSURLSessionDownloadTask *const task = [self.session downloadTaskWithRequest:request];
-      
-      self.bookIdentifierToDownloadInfo[book.identifier] =
+      if (NYPLUserAccount.sharedAccount.authDefinition.selectedSamlIdp && state != NYPLBookStateSAMLStarted) {
+        [[NYPLBookRegistry sharedRegistry] setState:NYPLBookStateSAMLStarted forIdentifier:book.identifier];
+        [self broadcastUpdate];
+
+        NSMutableArray *someCookies = NYPLUserAccount.sharedAccount.cookies.mutableCopy;
+        NSMutableURLRequest *mutableRequest = request.mutableCopy;
+
+        __weak NYPLMyBooksDownloadCenter *weakSelf = self;
+        CookiesWebViewModel *model = [[CookiesWebViewModel alloc] initWithCookies:someCookies
+                                                                          request:mutableRequest
+                                                           loginCompletionHandler:nil
+                                                                 bookFoundHandler:^(NSURLRequest * _Nullable request, NSArray<NSHTTPCookie *> * _Nonnull cookies) {
+          [NYPLUserAccount.sharedAccount setCookies:cookies];
+          [weakSelf startDownloadForBook:book withRequest:request];
+          [[NYPLRootTabBarController sharedController] dismissViewControllerAnimated:YES completion:nil];
+        }
+                                                               loginScreenHandler:^{
+          // show vc from here (means it is needed)
+        }];
+
+//        CookiesWebViewModel *model = [[CookiesWebViewModel alloc] initWithCookies:someCookies request:mutableRequest completionHandler:^(NSURL * _Nonnull url, NSArray<NSHTTPCookie *> * _Nonnull cookies) { }];
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+          NYPLCookiesWebViewController *cookiesVC = [[NYPLCookiesWebViewController alloc] initWithModel:model];
+          [[NYPLRootTabBarController sharedController] safelyPresentViewController:cookiesVC animated:YES completion:nil];
+        });
+      } else {
+        // clear all cookies
+        NSHTTPCookieStorage *cookieStorage = self.session.configuration.HTTPCookieStorage;
+        for (NSHTTPCookie *each in cookieStorage.cookies) {
+          [cookieStorage deleteCookie:each];
+        }
+
+        // set new cookies
+        for (NSHTTPCookie *cookie in NYPLUserAccount.sharedAccount.cookies) {
+          [self.session.configuration.HTTPCookieStorage setCookie:cookie];
+        }
+
+        NSURLSessionDownloadTask *const task = [self.session downloadTaskWithRequest:request];
+
+        self.bookIdentifierToDownloadInfo[book.identifier] =
         [[NYPLMyBooksDownloadInfo alloc]
          initWithDownloadProgress:0.0
          downloadTask:task
          rightsManagement:NYPLMyBooksDownloadRightsManagementUnknown];
-      
-      self.taskIdentifierToBook[@(task.taskIdentifier)] = book;
-      
-      [task resume];
-      
-      [[NYPLBookRegistry sharedRegistry]
-       addBook:book
-       location:nil
-       state:NYPLBookStateDownloading
-       fulfillmentId:nil
-       readiumBookmarks:nil
-       genericBookmarks:nil];
-      
-      // It is important to issue this immediately because a previous download may have left the
-      // progress for the book at greater than 0.0 and we do not want that to be temporarily shown to
-      // the user. As such, calling |broadcastUpdate| is not appropriate due to the delay.
-      [[NSNotificationCenter defaultCenter]
-       postNotificationName:NYPLMyBooksDownloadCenterDidChangeNotification
-       object:self];
+
+        self.taskIdentifierToBook[@(task.taskIdentifier)] = book;
+
+        [task resume];
+
+        [[NYPLBookRegistry sharedRegistry]
+         addBook:book
+         location:nil
+         state:NYPLBookStateDownloading
+         fulfillmentId:nil
+         readiumBookmarks:nil
+         genericBookmarks:nil];
+
+        // It is important to issue this immediately because a previous download may have left the
+        // progress for the book at greater than 0.0 and we do not want that to be temporarily shown to
+        // the user. As such, calling |broadcastUpdate| is not appropriate due to the delay.
+        [[NSNotificationCenter defaultCenter]
+         postNotificationName:NYPLMyBooksDownloadCenterDidChangeNotification
+         object:self];
+      }
     }
 
   } else {

@@ -24,6 +24,8 @@ class NYPLSignInBusinessLogic: NSObject {
     return AccountsManager.shared.account(libraryAccountID)
   }
 
+  @objc var selectedIDP: SamlIDP?
+
   private var _selectedAuthentication: AccountDetails.Authentication?
   @objc var selectedAuthentication: AccountDetails.Authentication? {
     get {

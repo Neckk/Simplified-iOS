@@ -6,5 +6,9 @@
 	<array>
 		<string>applinks:skyneck.pl</string>
 	</array>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)7262U6ST2R.com.skyneck.SAML-Test-app</string>
+	</array>
 </dict>
 </plist>

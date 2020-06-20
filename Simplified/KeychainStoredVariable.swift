@@ -51,28 +51,28 @@ class KeychainVariable<VariableType>: Keyable {
   }
 
   func write(_ newValue: VariableType?) {
-    // set new value to cache
-    cachedValue = newValue
+    transaction.perform {
+      // set new value to cache
+      cachedValue = newValue
 
-    // set a flag indicating that current cache is good to use
-    alreadyInited = true
+      // set a flag indicating that current cache is good to use
+      alreadyInited = true
 
-    // write new data to keychain in background
-    DispatchQueue.global(qos: .userInitiated).async { [key] in
-      if let newValue = newValue {
-        // if there is a new value, set it
-        NYPLKeychain.shared()?.setObject(newValue, forKey: key)
-      } else {
-        // otherwise remove old value from keychain
-        NYPLKeychain.shared()?.removeObject(forKey: key)
+      // write new data to keychain in background
+      DispatchQueue.global(qos: .userInitiated).async { [key] in
+        if let newValue = newValue {
+          // if there is a new value, set it
+          NYPLKeychain.shared()?.setObject(newValue, forKey: key)
+        } else {
+          // otherwise remove old value from keychain
+          NYPLKeychain.shared()?.removeObject(forKey: key)
+        }
       }
     }
   }
 
   func safeWrite(_ newValue: VariableType?) {
-    transaction.perform {
-      write(newValue)
-    }
+    write(newValue)
   }
 }
 
@@ -86,13 +86,15 @@ class KeychainCodableVariable<VariableType: Codable>: KeychainVariable<VariableT
   }
 
   override func write(_ newValue: VariableType?) {
-    cachedValue = newValue
-    alreadyInited = true
-    DispatchQueue.global(qos: .userInitiated).async { [key] in
-      if let newValue = newValue, let data = try? JSONEncoder().encode(newValue) {
-        NYPLKeychain.shared()?.setObject(data, forKey: key)
-      } else {
-        NYPLKeychain.shared()?.removeObject(forKey: key)
+    transaction.perform {
+      cachedValue = newValue
+      alreadyInited = true
+      DispatchQueue.global(qos: .userInitiated).async { [key] in
+        if let newValue = newValue, let data = try? JSONEncoder().encode(newValue) {
+          NYPLKeychain.shared()?.setObject(data, forKey: key)
+        } else {
+          NYPLKeychain.shared()?.removeObject(forKey: key)
+        }
       }
     }
   }

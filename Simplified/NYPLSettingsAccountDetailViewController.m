@@ -27,6 +27,7 @@
 #endif
 
 typedef NS_ENUM(NSInteger, CellKind) {
+  CellKindIdpName,
   CellKindAuthenticationMethodName,
   CellKindAdvancedSettings,
   CellKindAgeCheck,
@@ -71,6 +72,7 @@ typedef NS_ENUM(NSInteger, CellKind) {
 @property (nonatomic) NYPLSignInBusinessLogic *businessLogic;
 @property (nonatomic) NSString *authToken;
 @property (nonatomic) NSDictionary *patron;
+@property (nonatomic) NSArray *cookies;
 
 // networking
 @property (nonatomic) NSURLSession *session;
@@ -294,8 +296,12 @@ static const NSInteger sSection1Sync = 1;
   NSMutableArray *section0AcctInfo;
 
   void (^insertCredentials)(AccountDetailsAuthentication *, NSMutableArray *section) = ^(AccountDetailsAuthentication *authenticationMethod, NSMutableArray *section) {
-    if (authenticationMethod.oauthIntermediaryUrl) {
+    if (authenticationMethod.oauthIntermediaryUrl || authenticationMethod.selectedSamlIdp) {
       [section addObject:@(CellKindLogInSignOut)];
+    } else if (authenticationMethod.samlIdps.count > 0) {
+      for (SamlIDP *idp in authenticationMethod.samlIdps) {
+        [section addObject:@(CellKindIdpName)];
+      }
     } else if (authenticationMethod.pinKeyboard != LoginKeyboardNone) {
       [section addObjectsFromArray:@[@(CellKindBarcode), @(CellKindPIN), @(CellKindLogInSignOut)]];
     } else {
@@ -314,12 +320,11 @@ static const NSInteger sSection1Sync = 1;
     // show only the selected auth method
     section0AcctInfo = @[].mutableCopy;
     insertCredentials(self.businessLogic.selectedAuthentication, section0AcctInfo);
-  } else if (!self.businessLogic.userAccount.hasCredentials) {
+  } else if (!self.businessLogic.userAccount.hasCredentials && self.businessLogic.userAccount.needsAuth) {
     // user needs to sign in
     section0AcctInfo = @[].mutableCopy;
 
-
-    if (self.businessLogic.libraryAccount.details.auths.count > 1)  {
+    if (self.businessLogic.libraryAccount.details.auths.count > 1) {
       // multiple authentication methods
       if (self.businessLogic.selectedAuthentication) {
         // show all possible login methods
@@ -387,6 +392,7 @@ static const NSInteger sSection1Sync = 1;
     }
   }
   self.tableData = finalTableContents;
+  [self.tableView reloadData];
 }
 
 - (void)viewWillAppear:(BOOL)animated
@@ -462,6 +468,38 @@ static const NSInteger sSection1Sync = 1;
 
     [UIApplication.sharedApplication openURL: urlComponents.URL];
     [[UIApplication sharedApplication] beginIgnoringInteractionEvents];
+  } else if (self.businessLogic.selectedAuthentication.samlIdps.count > 0) {
+    // SAML
+    NSURL *idpURL = self.businessLogic.selectedIDP.url;
+
+    NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:idpURL resolvingAgainstBaseURL:true];
+
+    // add params
+    NSURLQueryItem *redirect_uri = [[NSURLQueryItem alloc] initWithName:@"redirect_uri" value:@"https://skyneck.pl/login"];
+    urlComponents.queryItems = [urlComponents.queryItems arrayByAddingObject:redirect_uri];
+    NSURL *url = urlComponents.URL;
+
+    CookiesWebViewModel *model = [[CookiesWebViewModel alloc] initWithCookies:@[]
+                                                                      request:[[NSURLRequest alloc] initWithURL:url]
+                                                       loginCompletionHandler:^(NSURL * _Nonnull url, NSArray<NSHTTPCookie *> * _Nonnull cookies) {
+      self.cookies = cookies;
+      [self handleRedirectURL:[NSNotification notificationWithName:@"NYPLAppDelegateDidReceiveCleverRedirectURL"
+                                                            object:url
+                                                          userInfo:nil]];
+      [self dismissViewControllerAnimated:YES completion:nil];
+    }
+                                                             bookFoundHandler:nil
+                                                           loginScreenHandler:nil];
+    NYPLCookiesWebViewController *cookiesVC = [[NYPLCookiesWebViewController alloc] initWithModel:model];
+    [self presentViewController:cookiesVC animated:YES completion:nil];
+
+//    [[NSNotificationCenter defaultCenter] addObserver:self
+//                                             selector:@selector(handleRedirectURL:)
+//                                                 name: @"NYPLAppDelegateDidReceiveCleverRedirectURL"
+//                                               object:nil];
+//
+//    [UIApplication.sharedApplication openURL: url];
+//    [[UIApplication sharedApplication] beginIgnoringInteractionEvents];
   } else {
     // bar and pin
     assert(self.usernameTextField.text.length > 0);
@@ -491,7 +529,8 @@ static const NSInteger sSection1Sync = 1;
   }
 
   NSMutableDictionary *kvpairs = [[NSMutableDictionary alloc] init];
-  for (NSString *param in [url.fragment componentsSeparatedByString:@"&"]) {
+  NSString *responseData = url.fragment != nil ? url.fragment : url.query;
+  for (NSString *param in [responseData componentsSeparatedByString:@"&"]) {
     NSArray *elts = [param componentsSeparatedByString:@"="];
     if([elts count] < 2) continue;
     [kvpairs setObject:[elts lastObject] forKey:[elts firstObject]];
@@ -595,6 +634,8 @@ static const NSInteger sSection1Sync = 1;
     [[NYPLMyBooksDownloadCenter sharedDownloadCenter] reset:self.selectedAccountId];
     [[NYPLBookRegistry sharedRegistry] reset:self.selectedAccountId];
     [self.businessLogic.userAccount removeAll];
+    self.businessLogic.selectedAuthentication.selectedSamlIdp = nil;
+    self.businessLogic.selectedIDP = nil;
     [self setupTableData];
     [self.tableView reloadData];
     [self removeActivityTitle];
@@ -607,7 +648,6 @@ static const NSInteger sSection1Sync = 1;
 
 - (void)deauthorizeDevice
 {
-
 #if defined(FEATURE_DRM_CONNECTOR)
 
   void (^afterDeauthorization)(void) = ^() {
@@ -617,7 +657,9 @@ static const NSInteger sSection1Sync = 1;
     [[NYPLMyBooksDownloadCenter sharedDownloadCenter] reset:self.selectedAccountId];
     [[NYPLBookRegistry sharedRegistry] reset:self.selectedAccountId];
     
-    [self.selectedUserAccount removeAll];
+    [self.businessLogic.userAccount removeAll];
+    self.businessLogic.selectedAuthentication.selectedSamlIdp = nil;
+    self.businessLogic.selectedIDP = nil;
     [self setupTableData];
     [self.tableView reloadData];
   };
@@ -672,7 +714,7 @@ static const NSInteger sSection1Sync = 1;
 
   request.timeoutInterval = self.businessLogic.requestTimeoutInterval;
 
-  if (self.businessLogic.selectedAuthentication.oauthIntermediaryUrl) {
+  if (self.businessLogic.selectedAuthentication.oauthIntermediaryUrl || self.businessLogic.selectedAuthentication.samlIdps.count > 0) {
     NSString *authToken = self.authToken;
     if (authToken != nil) {
       NSString *authenticationValue = [@"Bearer " stringByAppendingString: authToken];
@@ -838,6 +880,14 @@ static const NSInteger sSection1Sync = 1;
       if (self.businessLogic.selectedAuthentication.oauthIntermediaryUrl) {
         [self.businessLogic.userAccount setAuthToken:self.authToken];
         [self.businessLogic.userAccount setPatron:self.patron];
+      } else if (self.businessLogic.selectedAuthentication.samlIdps.count > 0) {
+        [self.businessLogic.userAccount setAuthToken:self.authToken];
+        [self.businessLogic.userAccount setPatron:self.patron];
+        if (self.cookies) {
+          [self.businessLogic.userAccount setCookies:self.cookies];
+        }
+//        [self.businessLogic.userAccount.authDefinition setSelectedSamlIdp:self.businessLogic.selectedIDP];
+        [self.businessLogic.selectedAuthentication setSelectedSamlIdp:self.businessLogic.selectedIDP];
       } else {
         [self.businessLogic.userAccount setBarcode:self.usernameTextField.text PIN:self.PINTextField.text];
       }
@@ -1061,11 +1111,19 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
       break;
     }
     case CellKindAuthenticationMethodName: {
+      self.businessLogic.selectedIDP = nil;
       AccountDetailsAuthentication * _Nullable cellAuthentication = [self authenticationFor:indexPath];
       self.businessLogic.selectedAuthentication = cellAuthentication;
       [self setupTableData];
       [self.tableView reloadData];
 
+      break;
+    }
+    case CellKindIdpName: {
+      [self.tableView deselectRowAtIndexPath:indexPath animated:YES];
+      SamlIDP * _Nullable cellIdp = [self samlIdpFor:indexPath];
+      self.businessLogic.selectedIDP = cellIdp;
+      [self logIn];
       break;
     }
   }
@@ -1270,6 +1328,16 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
       cell.textLabel.text = cellAuthentication.methodDescription;
       return cell;
     }
+    case CellKindIdpName: {
+      SamlIDP * _Nullable cellIdp = [self samlIdpFor:indexPath];
+
+      UITableViewCell *cell = [[UITableViewCell alloc]
+                               initWithStyle:UITableViewCellStyleDefault
+                               reuseIdentifier:nil];
+      cell.textLabel.font = [UIFont customFontForTextStyle:UIFontTextStyleBody];
+      cell.textLabel.text = cellIdp.displayName;
+      return cell;
+    }
   }
 }
 
@@ -1290,6 +1358,34 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
   }
 
   return cellAuthentication;
+}
+
+- (SamlIDP * _Nullable)samlIdpFor:(NSIndexPath *)indexPath {
+  NSArray *sectionArray = (NSArray *)self.tableData[indexPath.section];
+  AccountDetailsAuthentication * _Nullable cellAuthentication;
+
+  NSInteger authTypeIndex = 0;
+
+  if ([sectionArray containsObject:@(CellKindAuthenticationMethodName)]) {
+    authTypeIndex = -1;
+
+    for (NSInteger index = 0; index <= indexPath.row; ++index) {
+      CellKind kind = (CellKind)[sectionArray[index] intValue];
+      if (kind == CellKindAuthenticationMethodName) {
+        authTypeIndex += 1;
+      }
+    }
+
+    if (authTypeIndex >= 0 && authTypeIndex < ((NSInteger) self.businessLogic.libraryAccount.details.auths.count)) {
+      cellAuthentication = self.businessLogic.libraryAccount.details.auths[authTypeIndex];
+    }
+  } else {
+    cellAuthentication = self.businessLogic.libraryAccount.details.auths.firstObject;
+  }
+
+  NSInteger idpPosition = indexPath.row - authTypeIndex;
+
+  return cellAuthentication.samlIdps[idpPosition];
 }
 
 - (UITableViewCell *)createRegistrationCell

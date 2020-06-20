@@ -3,6 +3,25 @@ private let userAcceptedEULAKey          = "NYPLSettingsUserAcceptedEULA"
 private let userAboveAgeKey              = "NYPLSettingsUserAboveAgeKey"
 private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
 
+
+@objcMembers
+class SamlIDP: NSObject, Codable {
+  let url: URL
+
+  private let displayNames: [String: String]?
+  private let descriptions: [String: String]?
+
+  var displayName: String? { displayNames?["en"] }
+  var idpDescription: String? { descriptions?["en"] }
+
+  init?(opdsLink: OPDS2Link) {
+    guard let url = URL(string: opdsLink.href) else { return nil }
+    self.url = url
+    self.displayNames = opdsLink.displayNames?.reduce(into: [String: String]()) { $0[$1.language] = $1.value }
+    self.descriptions = opdsLink.descriptions?.reduce(into: [String: String]()) { $0[$1.language] = $1.value }
+  }
+}
+
 // MARK: AccountDetails
 // Extra data that gets loaded from an OPDS2AuthenticationDocument,
 @objcMembers final class AccountDetails: NSObject {
@@ -11,6 +30,7 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
     case coppa = "http://librarysimplified.org/terms/authentication/gate/coppa"
     case anonymous = "http://librarysimplified.org/rel/auth/anonymous"
     case oauthIntermediary = "http://librarysimplified.org/authtype/OAuth-with-intermediary"
+    case saml = "http://opds-spec.org/auth/saml"
     case none
   }
   
@@ -30,8 +50,12 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
     let oauthIntermediaryUrl:URL?
     let methodDescription: String?
 
+    var selectedSamlIdp: SamlIDP?
+    let samlIdps: [SamlIDP]?
+
     init(auth: OPDS2AuthenticationDocument.Authentication) {
-      authType = AuthType(rawValue: auth.type) ?? .none
+      let authType = AuthType(rawValue: auth.type) ?? .none
+      self.authType = authType
       authPasscodeLength = auth.inputs?.password.maximumLength ?? 99
       patronIDKeyboard = LoginKeyboard.init(auth.inputs?.login.keyboard) ?? .standard
       pinKeyboard = LoginKeyboard.init(auth.inputs?.password.keyboard) ?? .standard
@@ -40,13 +64,37 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
       methodDescription = auth.description
       supportsBarcodeScanner = auth.inputs?.login.barcodeFormat == "Codabar"
       supportsBarcodeDisplay = supportsBarcodeScanner
-      coppaUnderUrl = URL.init(string: auth.links?.first(where: { $0.rel == "http://librarysimplified.org/terms/rel/authentication/restriction-not-met" })?.href ?? "")
+
+      switch authType {
+      case .coppa:
+        coppaUnderUrl = URL.init(string: auth.links?.first(where: { $0.rel == "http://librarysimplified.org/terms/rel/authentication/restriction-not-met" })?.href ?? "")
         coppaOverUrl = URL.init(string: auth.links?.first(where: { $0.rel == "http://librarysimplified.org/terms/rel/authentication/restriction-met" })?.href ?? "")
+        oauthIntermediaryUrl = nil
+        samlIdps = nil
+
+      case .oauthIntermediary:
         oauthIntermediaryUrl = URL.init(string: auth.links?.first(where: { $0.rel == "authenticate" })?.href ?? "")
+        coppaUnderUrl = nil
+        coppaOverUrl = nil
+        samlIdps = nil
+
+      case .saml:
+        samlIdps = auth.links?.filter { $0.rel == "authenticate" }.compactMap { SamlIDP(opdsLink: $0) }
+        oauthIntermediaryUrl = nil
+        coppaUnderUrl = nil
+        coppaOverUrl = nil
+
+      case .none, .basic, .anonymous:
+        oauthIntermediaryUrl = nil
+        coppaUnderUrl = nil
+        coppaOverUrl = nil
+        samlIdps = nil
+
+      }
     }
 
     var needsAuth:Bool {
-      return authType == .basic || authType == .oauthIntermediary
+      return authType == .basic || authType == .oauthIntermediary || authType == .saml
     }
 
     var needsAgeCheck:Bool {
@@ -54,7 +102,7 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
     }
 
     var isCatalogSecured: Bool {
-      return authType == .oauthIntermediary
+      return authType == .oauthIntermediary || authType == .saml
     }
 
     func encode(with coder: NSCoder) {
@@ -80,6 +128,8 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
       coppaOverUrl = authentication.coppaOverUrl
       oauthIntermediaryUrl = authentication.oauthIntermediaryUrl
       methodDescription = authentication.methodDescription
+      samlIdps = authentication.samlIdps
+      selectedSamlIdp = authentication.selectedSamlIdp
     }
   }
 

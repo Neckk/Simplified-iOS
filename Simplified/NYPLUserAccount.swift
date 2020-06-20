@@ -24,6 +24,7 @@ private enum StorageKey: String {
   case deviceID = "NYPLAccountDeviceIDKey"
   case credentials = "NYPLAccountCredentialsKey"
   case authDefinition = "NYPLAccountAuthDefinitionKey"
+  case cookies = "NYPLAccountAuthCookiesKey"
 
   func keyForLibrary(uuid libraryUUID: String?) -> String {
     guard let libraryUUID = libraryUUID else { return self.rawValue }
@@ -50,6 +51,7 @@ private enum StorageKey: String {
         StorageKey.deviceID: _deviceID,
         StorageKey.credentials: _credentials,
         StorageKey.authDefinition: _authDefinition,
+        StorageKey.cookies: _cookies,
 
         // legacy
         StorageKey.barcode: _barcode,
@@ -60,6 +62,7 @@ private enum StorageKey: String {
       for (key, var value) in variables {
         value.key = key.keyForLibrary(uuid: libraryUUID)
       }
+//      removeAll() // to clean keychain data for a library <- REMOVE ME
     }
   }
 
@@ -204,6 +207,9 @@ private enum StorageKey: String {
   private lazy var _authDefinition: KeychainCodableVariable<AccountDetails.Authentication> = StorageKey.authDefinition
     .keyForLibrary(uuid: libraryUUID)
     .asKeychainCodableVariable(with: accountInfoLock)
+  private lazy var _cookies: KeychainVariable<[HTTPCookie]> = StorageKey.authDefinition
+    .keyForLibrary(uuid: libraryUUID)
+    .asKeychainVariable(with: accountInfoLock)
 
   // Legacy
   private lazy var _barcode: KeychainVariable<String> = StorageKey.barcode
@@ -253,7 +259,7 @@ private enum StorageKey: String {
 
   var needsAuth:Bool {
     let authType = authDefinition?.authType ?? .none
-    return authType == .basic || authType == .oauthIntermediary
+    return authType == .basic || authType == .oauthIntermediary || authType == .saml
   }
 
   var needsAgeCheck:Bool {
@@ -275,6 +281,7 @@ private enum StorageKey: String {
   var patron: [String:Any]? { _patron.read() }
   var adobeToken: String? { _adobeToken.read() }
   var licensor: [String:Any]? { _licensor.read() }
+  var cookies: [HTTPCookie]? { _cookies.read() }
 
   var barcode: String? {
     if let credentials = credentials, case let Credentials.barcodeAndPin(barcode: barcode, pin: _) = credentials {
@@ -299,7 +306,6 @@ private enum StorageKey: String {
       return nil
     }
   }
-
 
   var patronFullName: String? {
     if let patron = patron,
@@ -381,7 +387,13 @@ private enum StorageKey: String {
   func setAuthToken(_ token: String) {
     credentials = .token(authToken: token)
   }
-  
+
+  @objc(setCookies:)
+  func setCookies(_ cookies: [HTTPCookie]) {
+    _cookies.write(cookies)
+    notifyAccountDidChange()
+  }
+
   @objc(setProvider:)
   func setProvider(_ provider: String) {
     _provider.safeWrite(provider)
@@ -403,7 +415,9 @@ private enum StorageKey: String {
   // MARK: - Remove
   func removeBarcodeAndPIN() {
     keychainTransaction.perform {
+      _authDefinition.write(nil)
       _credentials.write(nil)
+      _cookies.write(nil)
       _authorizationIdentifier.write(nil)
 
       // remove legacy, just in case

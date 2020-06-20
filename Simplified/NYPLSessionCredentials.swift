@@ -7,18 +7,22 @@
 //
 
 import Foundation
+import WebKit
 
 enum Credentials {
 //  case token(authToken: String, patron: [String:Any])
   case token(authToken: String)
   case barcodeAndPin(barcode: String, pin: String)
+  case cookies([HTTPCookie])
   case open
 }
 
 extension Credentials: Codable {
+  // warning, order is important for proper decoding!
   enum TypeID: Int, Codable {
     case token
     case barcodeAndPin
+    case cookies
     case open
   }
 
@@ -26,6 +30,7 @@ extension Credentials: Codable {
     switch self {
     case .token: return .token
     case .barcodeAndPin: return .barcodeAndPin
+    case .cookies: return .cookies
     case .open: return .open
     }
   }
@@ -34,16 +39,20 @@ extension Credentials: Codable {
     case type
     case associatedTokenData
     case associatedBarcodeAndPinData
+    case associatedCookiesData
   }
 
   enum TokenKeys: String, CodingKey {
     case authToken
-    case patron
   }
 
   enum BarcodeAndPinKeys: String, CodingKey {
     case barcode
     case pin
+  }
+
+  enum CookiesKeys: String, CodingKey {
+    case cookiesData
   }
 
   init(from decoder: Decoder) throws {
@@ -67,6 +76,15 @@ extension Credentials: Codable {
       let pin = try additionalInfo.decode(String.self, forKey: .pin)
       self = .barcodeAndPin(barcode: barcode, pin: pin)
 
+    case .cookies:
+      let additionalInfo = try values.nestedContainer(keyedBy: CookiesKeys.self, forKey: .associatedCookiesData)
+      let cookiesData = try additionalInfo.decode(Data.self, forKey: .cookiesData)
+      guard let properties = try JSONSerialization.jsonObject(with: cookiesData, options: .allowFragments) as? [[HTTPCookiePropertyKey : Any]] else {
+        throw NSError()
+      }
+      let cookies = properties.compactMap { HTTPCookie(properties: $0) }
+      self = .cookies(cookies)
+
     case .open: self = .open
     }
   }
@@ -88,7 +106,13 @@ extension Credentials: Codable {
       try additionalInfo.encode(barcode, forKey: .barcode)
       try additionalInfo.encode(pin, forKey: .pin)
 
-    default: break
+    case let .cookies(cookies):
+      var additionalInfo = container.nestedContainer(keyedBy: CookiesKeys.self, forKey: .associatedCookiesData)
+      let properties: [[HTTPCookiePropertyKey : Any]] = cookies.compactMap { $0.properties }
+      let data = try JSONSerialization.data(withJSONObject: properties, options: [])
+      try additionalInfo.encode(data, forKey: .cookiesData)
+
+    case .open: break
     }
   }
 }
