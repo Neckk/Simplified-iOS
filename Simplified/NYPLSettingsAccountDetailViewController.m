@@ -27,8 +27,6 @@
 #endif
 
 typedef NS_ENUM(NSInteger, CellKind) {
-  CellKindIdpName,
-  CellKindAuthenticationMethodName,
   CellKindAdvancedSettings,
   CellKindAgeCheck,
   CellKindBarcodeImage,
@@ -77,8 +75,6 @@ typedef NS_ENUM(NSInteger, CellKind) {
 // networking
 @property (nonatomic) NSURLSession *session;
 @property (nonatomic) NYPLSettingsAccountURLSessionChallengeHandler *urlSessionDelegate;
-
-- (AccountDetailsAuthentication * _Nullable)authenticationFor:(NSIndexPath *)indexPath;
 
 @end
 
@@ -203,7 +199,6 @@ static const NSInteger sSection1Sync = 1;
           
           self.hiddenPIN = YES;
           [self accountDidChange];
-          [self.tableView reloadData];
           [self updateShowHidePINState];
         } else {
           [self displayErrorMessage:NSLocalizedString(@"CheckConnection", nil)];
@@ -296,11 +291,14 @@ static const NSInteger sSection1Sync = 1;
   NSMutableArray *section0AcctInfo;
 
   void (^insertCredentials)(AccountDetailsAuthentication *, NSMutableArray *section) = ^(AccountDetailsAuthentication *authenticationMethod, NSMutableArray *section) {
-    if (authenticationMethod.oauthIntermediaryUrl || authenticationMethod.selectedSamlIdp) {
+    if (authenticationMethod.oauthIntermediaryUrl) {
+      [section addObject:@(CellKindLogInSignOut)];
+    } else if (authenticationMethod.selectedSamlIdp && self.businessLogic.userAccount.hasCredentials) {
       [section addObject:@(CellKindLogInSignOut)];
     } else if (authenticationMethod.samlIdps.count > 0) {
       for (SamlIDP *idp in authenticationMethod.samlIdps) {
-        [section addObject:@(CellKindIdpName)];
+        SamlIdpCellType *idpCell = [[SamlIdpCellType alloc] initWithIdp:idp];
+        [section addObject:idpCell];
       }
     } else if (authenticationMethod.pinKeyboard != LoginKeyboardNone) {
       [section addObjectsFromArray:@[@(CellKindBarcode), @(CellKindPIN), @(CellKindLogInSignOut)]];
@@ -326,30 +324,19 @@ static const NSInteger sSection1Sync = 1;
 
     if (self.businessLogic.libraryAccount.details.auths.count > 1) {
       // multiple authentication methods
-      if (self.businessLogic.selectedAuthentication) {
+      for (AccountDetailsAuthentication *authenticationMethod in self.businessLogic.libraryAccount.details.auths) {
         // show all possible login methods
-        // and unfold the selected one
-        for (AccountDetailsAuthentication *authenticationMethod in self.businessLogic.libraryAccount.details.auths) {
-          [section0AcctInfo addObject:@(CellKindAuthenticationMethodName)];
-          if (authenticationMethod.methodDescription == self.businessLogic.selectedAuthentication.methodDescription) {
-            // selected method, unfold
-            insertCredentials(authenticationMethod, section0AcctInfo);
-          }
-        }
-      } else {
-        // show all possible login methods
-        // with none of them unfolded
-        for (AccountDetailsAuthentication *authenticationMethod in self.businessLogic.libraryAccount.details.auths) {
-          [section0AcctInfo addObject:@(CellKindAuthenticationMethodName)];
+        AuthMethodCellType *autheticationCell = [[AuthMethodCellType alloc] initWithAuthenticationMethod:authenticationMethod];
+        [section0AcctInfo addObject:autheticationCell];
+        if (authenticationMethod.methodDescription == self.businessLogic.selectedAuthentication.methodDescription) {
+          // selected method, unfold
+          insertCredentials(authenticationMethod, section0AcctInfo);
         }
       }
     } else if (self.businessLogic.selectedAuthentication) {
       // only 1 authentication method
       // no header needed
-      section0AcctInfo = @[].mutableCopy;
       insertCredentials(self.businessLogic.selectedAuthentication, section0AcctInfo);
-    } else {
-      section0AcctInfo = @[].mutableCopy;
     }
   } else {
     section0AcctInfo = @[].mutableCopy;
@@ -492,14 +479,6 @@ static const NSInteger sSection1Sync = 1;
                                                            loginScreenHandler:nil];
     NYPLCookiesWebViewController *cookiesVC = [[NYPLCookiesWebViewController alloc] initWithModel:model];
     [self presentViewController:cookiesVC animated:YES completion:nil];
-
-//    [[NSNotificationCenter defaultCenter] addObserver:self
-//                                             selector:@selector(handleRedirectURL:)
-//                                                 name: @"NYPLAppDelegateDidReceiveCleverRedirectURL"
-//                                               object:nil];
-//
-//    [UIApplication.sharedApplication openURL: url];
-//    [[UIApplication sharedApplication] beginIgnoringInteractionEvents];
   } else {
     // bar and pin
     assert(self.usernameTextField.text.length > 0);
@@ -637,7 +616,6 @@ static const NSInteger sSection1Sync = 1;
     self.businessLogic.selectedAuthentication.selectedSamlIdp = nil;
     self.businessLogic.selectedIDP = nil;
     [self setupTableData];
-    [self.tableView reloadData];
     [self removeActivityTitle];
     [[UIApplication sharedApplication] endIgnoringInteractionEvents];
   }
@@ -661,7 +639,6 @@ static const NSInteger sSection1Sync = 1;
     self.businessLogic.selectedAuthentication.selectedSamlIdp = nil;
     self.businessLogic.selectedIDP = nil;
     [self setupTableData];
-    [self.tableView reloadData];
   };
 
   NSDictionary *licensor = [self.selectedUserAccount licensor];
@@ -916,7 +893,25 @@ static const NSInteger sSection1Sync = 1;
 - (void)tableView:(__attribute__((unused)) UITableView *)tableView
 didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
 {
+
   NSArray *sectionArray = (NSArray *)self.tableData[indexPath.section];
+  if ([sectionArray[indexPath.row] isKindOfClass:[AuthMethodCellType class]]) {
+    AuthMethodCellType *methodCell = sectionArray[indexPath.row];
+    [self.tableView deselectRowAtIndexPath:indexPath animated:YES];
+
+    self.businessLogic.selectedIDP = nil;
+    self.businessLogic.selectedAuthentication = methodCell.authenticationMethod;
+    [self setupTableData];
+    return;
+  } else if ([sectionArray[indexPath.row] isKindOfClass:[SamlIdpCellType class]]) {
+    SamlIdpCellType *idpCell = sectionArray[indexPath.row];
+    [self.tableView deselectRowAtIndexPath:indexPath animated:YES];
+
+    self.businessLogic.selectedIDP = idpCell.idp;
+    [self logIn];
+    return;
+  }
+
   CellKind cellKind = (CellKind)[sectionArray[indexPath.row] intValue];
   
   switch(cellKind) {
@@ -1110,22 +1105,6 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
       [self.navigationController pushViewController:vc animated:YES];
       break;
     }
-    case CellKindAuthenticationMethodName: {
-      self.businessLogic.selectedIDP = nil;
-      AccountDetailsAuthentication * _Nullable cellAuthentication = [self authenticationFor:indexPath];
-      self.businessLogic.selectedAuthentication = cellAuthentication;
-      [self setupTableData];
-      [self.tableView reloadData];
-
-      break;
-    }
-    case CellKindIdpName: {
-      [self.tableView deselectRowAtIndexPath:indexPath animated:YES];
-      SamlIDP * _Nullable cellIdp = [self samlIdpFor:indexPath];
-      self.businessLogic.selectedIDP = cellIdp;
-      [self logIn];
-      break;
-    }
   }
 }
 
@@ -1138,6 +1117,25 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
          cellForRowAtIndexPath:(NSIndexPath *const)indexPath
 {
   NSArray *sectionArray = (NSArray *)self.tableData[indexPath.section];
+
+  if ([sectionArray[indexPath.row] isKindOfClass:[AuthMethodCellType class]]) {
+    AuthMethodCellType *methodCell = sectionArray[indexPath.row];
+    UITableViewCell *cell = [[UITableViewCell alloc]
+                             initWithStyle:UITableViewCellStyleDefault
+                             reuseIdentifier:nil];
+    cell.textLabel.font = [UIFont customFontForTextStyle:UIFontTextStyleBody];
+    cell.textLabel.text = methodCell.authenticationMethod.methodDescription;
+    return cell;
+  } else if ([sectionArray[indexPath.row] isKindOfClass:[SamlIdpCellType class]]) {
+    SamlIdpCellType *idpCell = sectionArray[indexPath.row];
+    UITableViewCell *cell = [[UITableViewCell alloc]
+                             initWithStyle:UITableViewCellStyleDefault
+                             reuseIdentifier:nil];
+    cell.textLabel.font = [UIFont customFontForTextStyle:UIFontTextStyleBody];
+    cell.textLabel.text = idpCell.idp.displayName;
+    return cell;
+  }
+
   CellKind cellKind = (CellKind)[sectionArray[indexPath.row] intValue];
 
   switch(cellKind) {
@@ -1318,74 +1316,7 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
       cell.textLabel.text = NSLocalizedString(@"Advanced", nil);
       return cell;
     }
-    case CellKindAuthenticationMethodName: {
-      AccountDetailsAuthentication * _Nullable cellAuthentication = [self authenticationFor:indexPath];
-
-      UITableViewCell *cell = [[UITableViewCell alloc]
-                               initWithStyle:UITableViewCellStyleDefault
-                               reuseIdentifier:nil];
-      cell.textLabel.font = [UIFont customFontForTextStyle:UIFontTextStyleBody];
-      cell.textLabel.text = cellAuthentication.methodDescription;
-      return cell;
-    }
-    case CellKindIdpName: {
-      SamlIDP * _Nullable cellIdp = [self samlIdpFor:indexPath];
-
-      UITableViewCell *cell = [[UITableViewCell alloc]
-                               initWithStyle:UITableViewCellStyleDefault
-                               reuseIdentifier:nil];
-      cell.textLabel.font = [UIFont customFontForTextStyle:UIFontTextStyleBody];
-      cell.textLabel.text = cellIdp.displayName;
-      return cell;
-    }
   }
-}
-
-- (AccountDetailsAuthentication * _Nullable)authenticationFor:(NSIndexPath *)indexPath {
-  NSArray *sectionArray = (NSArray *)self.tableData[indexPath.section];
-  AccountDetailsAuthentication * _Nullable cellAuthentication;
-  NSInteger authTypeIndex = -1;
-
-  for (NSInteger index = 0; index <= indexPath.row; ++index) {
-    CellKind kind = (CellKind)[sectionArray[index] intValue];
-    if (kind == CellKindAuthenticationMethodName) {
-      authTypeIndex += 1;
-    }
-  }
-
-  if (authTypeIndex >= 0 && authTypeIndex < ((NSInteger) self.businessLogic.libraryAccount.details.auths.count)) {
-    cellAuthentication = self.businessLogic.libraryAccount.details.auths[authTypeIndex];
-  }
-
-  return cellAuthentication;
-}
-
-- (SamlIDP * _Nullable)samlIdpFor:(NSIndexPath *)indexPath {
-  NSArray *sectionArray = (NSArray *)self.tableData[indexPath.section];
-  AccountDetailsAuthentication * _Nullable cellAuthentication;
-
-  NSInteger authTypeIndex = 0;
-
-  if ([sectionArray containsObject:@(CellKindAuthenticationMethodName)]) {
-    authTypeIndex = -1;
-
-    for (NSInteger index = 0; index <= indexPath.row; ++index) {
-      CellKind kind = (CellKind)[sectionArray[index] intValue];
-      if (kind == CellKindAuthenticationMethodName) {
-        authTypeIndex += 1;
-      }
-    }
-
-    if (authTypeIndex >= 0 && authTypeIndex < ((NSInteger) self.businessLogic.libraryAccount.details.auths.count)) {
-      cellAuthentication = self.businessLogic.libraryAccount.details.auths[authTypeIndex];
-    }
-  } else {
-    cellAuthentication = self.businessLogic.libraryAccount.details.auths.firstObject;
-  }
-
-  NSInteger idpPosition = indexPath.row - authTypeIndex;
-
-  return cellAuthentication.samlIdps[idpPosition];
 }
 
 - (UITableViewCell *)createRegistrationCell
@@ -1659,8 +1590,7 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
     }
     
     [self setupTableData];
-    [self.tableView reloadData];
-    
+
     [self updateLoginLogoutCellAppearance];
   }];
 }

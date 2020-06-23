@@ -132,7 +132,8 @@ totalBytesExpectedToWrite:(int64_t const)totalBytesExpectedToWrite
       self.bookIdentifierToDownloadInfo[book.identifier] =
         [[self downloadInfoForBookIdentifier:book.identifier]
          withRightsManagement:NYPLMyBooksDownloadRightsManagementSimplifiedBearerTokenJSON];
-    } else {
+    } else if ([NYPLBookAcquisitionPath.supportedTypes containsObject:downloadTask.response.MIMEType]) {
+      // if response type represents supported type of book, proceed
       NYPLLOG_F(@"Presuming no DRM for unrecognized MIME type \"%@\".", downloadTask.response.MIMEType);
       NYPLMyBooksDownloadInfo *info =
       [[self downloadInfoForBookIdentifier:book.identifier]
@@ -140,6 +141,12 @@ totalBytesExpectedToWrite:(int64_t const)totalBytesExpectedToWrite
       if (info) {
         self.bookIdentifierToDownloadInfo[book.identifier] = info;
       }
+    } else {
+      NYPLLOG(@"Authentication might be needed after all");
+      [downloadTask cancel];
+      [[NYPLBookRegistry sharedRegistry] setState:NYPLBookStateDownloadFailed forIdentifier:book.identifier];
+      [self broadcastUpdate];
+      return;
     }
   }
   
@@ -172,7 +179,8 @@ didFinishDownloadingToURL:(NSURL *const)location
 
   [self.taskIdentifierToRedirectAttempts removeObjectForKey:@(downloadTask.taskIdentifier)];
   
-  BOOL success = YES; 
+  BOOL success = YES;
+  BOOL needsAuth = NO;
   NYPLProblemDocument *problemDocument = nil;
   if ([downloadTask.response.MIMEType isEqualToString:@"application/problem+json"]
        || [downloadTask.response.MIMEType isEqualToString:@"application/api-problem+json"]) {
@@ -186,12 +194,18 @@ didFinishDownloadingToURL:(NSURL *const)location
     [[NSFileManager defaultManager] removeItemAtURL:location error:NULL];
     success = NO;
   }
+
+  if (![NYPLBookAcquisitionPath.supportedTypes containsObject:downloadTask.response.MIMEType]) {
+    [[NSFileManager defaultManager] removeItemAtURL:location error:NULL];
+    success = NO;
+    needsAuth = YES;
+  }
   
   if (success) {
     switch([self downloadInfoForBookIdentifier:book.identifier].rightsManagement) {
       case NYPLMyBooksDownloadRightsManagementUnknown:
         @throw NSInternalInconsistencyException;
-            
+
       case NYPLMyBooksDownloadRightsManagementAdobe:
       {
         
@@ -287,19 +301,28 @@ didFinishDownloadingToURL:(NSURL *const)location
   
   if (!success) {
     dispatch_async(dispatch_get_main_queue(), ^{
-      NSString *formattedMessage = [NSString stringWithFormat:NSLocalizedString(@"DownloadCouldNotBeCompletedFormat", nil), book.title];
-      UIAlertController *alert = [NYPLAlertUtils
-                                  alertWithTitle:@"DownloadFailed"
-                                  message:formattedMessage];
-      if (problemDocument) {
-        [[NYPLProblemDocumentCacheManager sharedInstance] cacheProblemDocument:problemDocument key:book.identifier];
-        [NYPLAlertUtils setProblemDocumentWithController:alert document:problemDocument append:YES];
-        
-        if ([problemDocument.type isEqualToString:NYPLProblemDocument.TypeNoActiveLoan]) {
-          [[NYPLBookRegistry sharedRegistry] removeBookForIdentifier:book.identifier];
+      if (needsAuth) {
+        NYPLLOG(@"Present sign in VC");
+        [NYPLAccountSignInViewController
+         requestCredentialsUsingExistingBarcode:NO
+         completionHandler:^{
+            [[NYPLMyBooksDownloadCenter sharedDownloadCenter] startDownloadForBook:book];
+        }];
+      } else {
+        NSString *formattedMessage = [NSString stringWithFormat:NSLocalizedString(@"DownloadCouldNotBeCompletedFormat", nil), book.title];
+        UIAlertController *alert = [NYPLAlertUtils
+                                    alertWithTitle:@"DownloadFailed"
+                                    message:formattedMessage];
+        if (problemDocument) {
+          [[NYPLProblemDocumentCacheManager sharedInstance] cacheProblemDocument:problemDocument key:book.identifier];
+          [NYPLAlertUtils setProblemDocumentWithController:alert document:problemDocument append:YES];
+
+          if ([problemDocument.type isEqualToString:NYPLProblemDocument.TypeNoActiveLoan]) {
+            [[NYPLBookRegistry sharedRegistry] removeBookForIdentifier:book.identifier];
+          }
         }
+        [NYPLAlertUtils presentFromViewControllerOrNilWithAlertController:alert viewController:nil animated:YES completion:nil];
       }
-      [NYPLAlertUtils presentFromViewControllerOrNilWithAlertController:alert viewController:nil animated:YES completion:nil];
     });
     
     [[NYPLBookRegistry sharedRegistry]

@@ -30,7 +30,7 @@ class SamlIDP: NSObject, Codable {
     case coppa = "http://librarysimplified.org/terms/authentication/gate/coppa"
     case anonymous = "http://librarysimplified.org/rel/auth/anonymous"
     case oauthIntermediary = "http://librarysimplified.org/authtype/OAuth-with-intermediary"
-    case saml = "http://opds-spec.org/auth/saml"
+    case saml = "http://librarysimplified.org/authtype/SAML-2.0"
     case none
   }
   
