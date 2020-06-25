@@ -435,7 +435,8 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
     UITableViewCell *cell = [[UITableViewCell alloc]
                              initWithStyle:UITableViewCellStyleDefault
                              reuseIdentifier:nil];
-    cell.textLabel.font = [UIFont customFontForTextStyle:UIFontTextStyleBody];
+    cell.indentationLevel = 1;
+    cell.textLabel.font = [UIFont customFontForTextStyle:UIFontTextStyleSubheadline];
     cell.textLabel.text = idpCell.idp.displayName;
     return cell;
   }
