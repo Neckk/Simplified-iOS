@@ -14,13 +14,15 @@ class CookiesWebViewModel: NSObject {
   let cookies: [HTTPCookie]
   let request: URLRequest
   let loginCompletionHandler: ((URL, [HTTPCookie]) -> Void)?
+  let loginCancelHandler: (() -> Void)?
   let bookFoundHandler: ((URLRequest?, [HTTPCookie]) -> Void)?
   let loginScreenHandler: (() -> Void)?
 
-  init(cookies: [HTTPCookie], request: URLRequest, loginCompletionHandler: ((URL, [HTTPCookie]) -> Void)?, bookFoundHandler: ((URLRequest?, [HTTPCookie]) -> Void)?, loginScreenHandler: (() -> Void)?) {
+  init(cookies: [HTTPCookie], request: URLRequest, loginCompletionHandler: ((URL, [HTTPCookie]) -> Void)?, loginCancelHandler: (() -> Void)?, bookFoundHandler: ((URLRequest?, [HTTPCookie]) -> Void)?, loginScreenHandler: (() -> Void)?) {
     self.cookies = cookies
     self.request = request
     self.loginCompletionHandler = loginCompletionHandler
+    self.loginCancelHandler = loginCancelHandler
     self.bookFoundHandler = bookFoundHandler
     self.loginScreenHandler = loginScreenHandler
     super.init()
@@ -29,10 +31,15 @@ class CookiesWebViewModel: NSObject {
 
 @objcMembers
 class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
-  private let model: CookiesWebViewModel // must be set before view loads
+  var model: CookiesWebViewModel! // must be set before view loads
   private var domainCookies: [String: [HTTPCookie]] = [:]
   private let webView = WKWebView()
   private var previousRequest: URLRequest?
+
+  init() {
+    super.init(nibName: nil, bundle: nil)
+    webView.configuration.websiteDataStore = WKWebsiteDataStore.nonPersistent()
+  }
 
   init(model: CookiesWebViewModel) {
     self.model = model
@@ -52,6 +59,11 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
   override func viewDidLoad() {
     super.viewDidLoad()
 
+//    if #available(iOS 13.0, *) {
+//      // iOS 13 brings new page like presentation for modals, this prevents the interactive dismiss gesture
+//      isModalInPresentation = true
+//    }
+
     navigationItem.leftBarButtonItem = UIBarButtonItem(title: NSLocalizedString("Cancel", comment: ""), style: .plain, target: self, action: #selector(didSelectCancel))
 
     webView.navigationDelegate = self
@@ -61,8 +73,8 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
         if #available(iOS 11.0, *) {
           webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) { [model, webView] in
             cookiesLeft -= 1
-            if cookiesLeft == 0 {
-              webView.load(model.request)
+            if cookiesLeft == 0, let request = model?.request {
+              webView.load(request)
             }
           }
         } else {
@@ -76,7 +88,7 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
   }
 
   @objc private func didSelectCancel() {
-    (navigationController?.presentingViewController ?? presentingViewController)?.dismiss(animated: true, completion: nil)
+    (navigationController?.presentingViewController ?? presentingViewController)?.dismiss(animated: true, completion: { [model] in model?.loginCancelHandler?() })
   }
 
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -110,6 +122,7 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
     }
   }
 
+  private var wasBookFounded = false
   func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
 
     if let bookHandler = model.bookFoundHandler {
@@ -117,6 +130,7 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
       let supportedTypes = NYPLBookAcquisitionPath.supportedTypes()
       
       if let responseType = navigationResponse.response.mimeType, supportedTypes.contains(responseType) {
+        wasBookFounded = true
 
         if #available(iOS 11.0, *) {
           decisionHandler(.cancel)
@@ -135,9 +149,24 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
     decisionHandler(.allow)
   }
 
+  private var loginScreenHandlerOnceOnly = true
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-    if let loginHandler = model.loginScreenHandler {
-      loginHandler()
+    OperationQueue.current?.underlyingQueue?.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+      guard let self = self else { return }
+      guard !self.webView.isLoading else { return }
+      guard !self.wasBookFounded else { return }
+      guard self.loginScreenHandlerOnceOnly else { return }
+      self.loginScreenHandlerOnceOnly = false
+
+      if let loginHandler = self.model.loginScreenHandler {
+        loginHandler()
+      }
     }
+  }
+}
+
+extension NYPLCookiesWebViewController: UIAdaptivePresentationControllerDelegate {
+  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    model?.loginCancelHandler?()
   }
 }

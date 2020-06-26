@@ -29,6 +29,7 @@
 @property (nonatomic) BOOL broadcastScheduled;
 @property (nonatomic) NSURLSession *session;
 @property (nonatomic) NSMutableDictionary *taskIdentifierToBook;
+@property (nonatomic) NYPLCookiesWebViewController *cookiesVC;
 
 /// Maps a task identifier to a non-negative redirect attempt count. This
 /// tracks the number of redirect attempts for a particular download task.
@@ -783,30 +784,37 @@ didCompleteWithError:(NSError *)error
 
       if (NYPLUserAccount.sharedAccount.authDefinition.selectedSamlIdp && state != NYPLBookStateSAMLStarted) {
         [[NYPLBookRegistry sharedRegistry] setState:NYPLBookStateSAMLStarted forIdentifier:book.identifier];
-        [self broadcastUpdate];
+//        [self broadcastUpdate];
 
         NSMutableArray *someCookies = NYPLUserAccount.sharedAccount.cookies.mutableCopy;
         NSMutableURLRequest *mutableRequest = request.mutableCopy;
 
-        __weak NYPLMyBooksDownloadCenter *weakSelf = self;
-        CookiesWebViewModel *model = [[CookiesWebViewModel alloc] initWithCookies:someCookies
-                                                                          request:mutableRequest
-                                                           loginCompletionHandler:nil
-                                                                 bookFoundHandler:^(NSURLRequest * _Nullable request, NSArray<NSHTTPCookie *> * _Nonnull cookies) {
-          [NYPLUserAccount.sharedAccount setCookies:cookies];
-          [weakSelf startDownloadForBook:book withRequest:request];
-          [[NYPLRootTabBarController sharedController] dismissViewControllerAnimated:YES completion:nil];
-        }
-                                                               loginScreenHandler:^{
-          // show vc from here (means it is needed)
-        }];
-
-//        CookiesWebViewModel *model = [[CookiesWebViewModel alloc] initWithCookies:someCookies request:mutableRequest completionHandler:^(NSURL * _Nonnull url, NSArray<NSHTTPCookie *> * _Nonnull cookies) { }];
-
         dispatch_async(dispatch_get_main_queue(), ^{
-          NYPLCookiesWebViewController *cookiesVC = [[NYPLCookiesWebViewController alloc] initWithModel:model];
-          UINavigationController *navigationWrapper = [[UINavigationController alloc] initWithRootViewController:cookiesVC];
-          [[NYPLRootTabBarController sharedController] safelyPresentViewController:navigationWrapper animated:YES completion:nil];
+//          NYPLCookiesWebViewController *cookiesVC = [[NYPLCookiesWebViewController alloc] initWithModel:model];
+          self.cookiesVC = [[NYPLCookiesWebViewController alloc] init];
+
+          __weak NYPLMyBooksDownloadCenter *weakSelf = self;
+
+          CookiesWebViewModel *model = [[CookiesWebViewModel alloc] initWithCookies:someCookies
+                                                                            request:mutableRequest
+                                                             loginCompletionHandler:nil
+                                                                 loginCancelHandler:^{
+            [[NYPLBookRegistry sharedRegistry] setState:NYPLBookStateUnregistered forIdentifier:book.identifier];
+            [weakSelf cancelDownloadForBookIdentifier:book.identifier];
+          }
+                                                                   bookFoundHandler:^(NSURLRequest * _Nullable request, NSArray<NSHTTPCookie *> * _Nonnull cookies) {
+            [NYPLUserAccount.sharedAccount setCookies:cookies];
+            [weakSelf startDownloadForBook:book withRequest:request];
+            [[NYPLRootTabBarController sharedController] dismissViewControllerAnimated:YES completion:nil];
+          }
+                                                                 loginScreenHandler:^{
+            // show vc from here (means it is needed)
+            UINavigationController *navigationWrapper = [[UINavigationController alloc] initWithRootViewController:weakSelf.cookiesVC];
+            [[NYPLRootTabBarController sharedController] safelyPresentViewController:navigationWrapper animated:YES completion:nil];
+          }];
+
+          self.cookiesVC.model = model;
+          [self.cookiesVC loadViewIfNeeded];
         });
       } else {
         // clear all cookies
@@ -848,13 +856,6 @@ didCompleteWithError:(NSError *)error
          object:self];
       }
     }
-
-  } else {
-    [NYPLAccountSignInViewController
-     requestCredentialsUsingExistingBarcode:NO
-     completionHandler:^{
-       [[NYPLMyBooksDownloadCenter sharedDownloadCenter] startDownloadForBook:book];
-     }];
   }
 }
 

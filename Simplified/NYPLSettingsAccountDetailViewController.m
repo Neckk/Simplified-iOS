@@ -475,6 +475,7 @@ static const NSInteger sSection1Sync = 1;
                                                           userInfo:nil]];
       [self dismissViewControllerAnimated:YES completion:nil];
     }
+                                                           loginCancelHandler:nil
                                                              bookFoundHandler:nil
                                                            loginScreenHandler:nil];
     NYPLCookiesWebViewController *cookiesVC = [[NYPLCookiesWebViewController alloc] initWithModel:model];
