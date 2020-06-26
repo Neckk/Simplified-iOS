@@ -897,7 +897,8 @@ completionHandler:(void (^)(void))handler
                                                              bookFoundHandler:nil
                                                            loginScreenHandler:nil];
     NYPLCookiesWebViewController *cookiesVC = [[NYPLCookiesWebViewController alloc] initWithModel:model];
-    [self presentViewController:cookiesVC animated:YES completion:nil];
+    UINavigationController *navigationWrapper = [[UINavigationController alloc] initWithRootViewController:cookiesVC];
+    [self presentViewController:navigationWrapper animated:YES completion:nil];
   } else {
     // bar and pin
     assert(self.usernameTextField.text.length > 0);

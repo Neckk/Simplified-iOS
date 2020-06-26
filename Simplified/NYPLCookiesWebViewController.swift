@@ -46,11 +46,13 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
   }
 
   override func loadView() {
-    self.view = webView
+    view = webView
   }
 
   override func viewDidLoad() {
     super.viewDidLoad()
+
+    navigationItem.leftBarButtonItem = UIBarButtonItem(title: NSLocalizedString("Cancel", comment: ""), style: .plain, target: self, action: #selector(didSelectCancel))
 
     webView.navigationDelegate = self
     if !model.cookies.isEmpty {
@@ -71,6 +73,10 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
     } else {
       webView.load(model.request)
     }
+  }
+
+  @objc private func didSelectCancel() {
+    (navigationController?.presentingViewController ?? presentingViewController)?.dismiss(animated: true, completion: nil)
   }
 
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {

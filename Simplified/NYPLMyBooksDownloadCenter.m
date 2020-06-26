@@ -805,7 +805,8 @@ didCompleteWithError:(NSError *)error
 
         dispatch_async(dispatch_get_main_queue(), ^{
           NYPLCookiesWebViewController *cookiesVC = [[NYPLCookiesWebViewController alloc] initWithModel:model];
-          [[NYPLRootTabBarController sharedController] safelyPresentViewController:cookiesVC animated:YES completion:nil];
+          UINavigationController *navigationWrapper = [[UINavigationController alloc] initWithRootViewController:cookiesVC];
+          [[NYPLRootTabBarController sharedController] safelyPresentViewController:navigationWrapper animated:YES completion:nil];
         });
       } else {
         // clear all cookies
