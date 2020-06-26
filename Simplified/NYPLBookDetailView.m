@@ -557,6 +557,7 @@ static NSString *DetailHTMLTemplate = nil;
       self.normalView.state = NYPLBookButtonsStateDownloadNeeded;
       self.buttonsView.state = NYPLBookButtonsStateDownloadNeeded;
       break;
+    case NYPLBookStateSAMLStarted:
     case NYPLBookStateDownloading:
       self.downloadFailedView.hidden = YES;
       [self hideDownloadingView:NO];

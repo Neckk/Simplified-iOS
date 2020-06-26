@@ -477,7 +477,7 @@ static const NSInteger sSection1Sync = 1;
     }
                                                            loginCancelHandler:nil
                                                              bookFoundHandler:nil
-                                                           loginScreenHandler:nil];
+                                                           autoPresentIfNeeded:NO];
     NYPLCookiesWebViewController *cookiesVC = [[NYPLCookiesWebViewController alloc] initWithModel:model];
     UINavigationController *navigationWrapper = [[UINavigationController alloc] initWithRootViewController:cookiesVC];
     [self presentViewController:navigationWrapper animated:YES completion:nil];

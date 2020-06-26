@@ -29,7 +29,6 @@
 @property (nonatomic) BOOL broadcastScheduled;
 @property (nonatomic) NSURLSession *session;
 @property (nonatomic) NSMutableDictionary *taskIdentifierToBook;
-@property (nonatomic) NYPLCookiesWebViewController *cookiesVC;
 
 /// Maps a task identifier to a non-negative redirect attempt count. This
 /// tracks the number of redirect attempts for a particular download task.
@@ -775,37 +774,28 @@ didCompleteWithError:(NSError *)error
 
       if (NYPLUserAccount.sharedAccount.cookies && state != NYPLBookStateSAMLStarted) {
         [[NYPLBookRegistry sharedRegistry] setState:NYPLBookStateSAMLStarted forIdentifier:book.identifier];
-//        [self broadcastUpdate];
 
         NSMutableArray *someCookies = NYPLUserAccount.sharedAccount.cookies.mutableCopy;
         NSMutableURLRequest *mutableRequest = request.mutableCopy;
 
         dispatch_async(dispatch_get_main_queue(), ^{
-//          NYPLCookiesWebViewController *cookiesVC = [[NYPLCookiesWebViewController alloc] initWithModel:model];
-          self.cookiesVC = [[NYPLCookiesWebViewController alloc] init];
-
           __weak NYPLMyBooksDownloadCenter *weakSelf = self;
 
           CookiesWebViewModel *model = [[CookiesWebViewModel alloc] initWithCookies:someCookies
                                                                             request:mutableRequest
                                                              loginCompletionHandler:nil
                                                                  loginCancelHandler:^{
-            [[NYPLBookRegistry sharedRegistry] setState:NYPLBookStateUnregistered forIdentifier:book.identifier];
+            [[NYPLBookRegistry sharedRegistry] setState:NYPLBookStateDownloadNeeded forIdentifier:book.identifier];
             [weakSelf cancelDownloadForBookIdentifier:book.identifier];
           }
                                                                    bookFoundHandler:^(NSURLRequest * _Nullable request, NSArray<NSHTTPCookie *> * _Nonnull cookies) {
             [NYPLUserAccount.sharedAccount setCookies:cookies];
             [weakSelf startDownloadForBook:book withRequest:request];
-            [[NYPLRootTabBarController sharedController] dismissViewControllerAnimated:YES completion:nil];
           }
-                                                                 loginScreenHandler:^{
-            // show vc from here (means it is needed)
-            UINavigationController *navigationWrapper = [[UINavigationController alloc] initWithRootViewController:weakSelf.cookiesVC];
-            [[NYPLRootTabBarController sharedController] safelyPresentViewController:navigationWrapper animated:YES completion:nil];
-          }];
+                                                                 autoPresentIfNeeded:YES]; // <- this will cause a web view to retain a cycle
 
-          self.cookiesVC.model = model;
-          [self.cookiesVC loadViewIfNeeded];
+          NYPLCookiesWebViewController *cookiesVC = [[NYPLCookiesWebViewController alloc] initWithModel:model];
+          [cookiesVC loadViewIfNeeded];
         });
       } else {
         // clear all cookies

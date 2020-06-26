@@ -16,21 +16,23 @@ class CookiesWebViewModel: NSObject {
   let loginCompletionHandler: ((URL, [HTTPCookie]) -> Void)?
   let loginCancelHandler: (() -> Void)?
   let bookFoundHandler: ((URLRequest?, [HTTPCookie]) -> Void)?
-  let loginScreenHandler: (() -> Void)?
+  let autoPresentIfNeeded: Bool
 
-  init(cookies: [HTTPCookie], request: URLRequest, loginCompletionHandler: ((URL, [HTTPCookie]) -> Void)?, loginCancelHandler: (() -> Void)?, bookFoundHandler: ((URLRequest?, [HTTPCookie]) -> Void)?, loginScreenHandler: (() -> Void)?) {
+  init(cookies: [HTTPCookie], request: URLRequest, loginCompletionHandler: ((URL, [HTTPCookie]) -> Void)?, loginCancelHandler: (() -> Void)?, bookFoundHandler: ((URLRequest?, [HTTPCookie]) -> Void)?, autoPresentIfNeeded: Bool = false) {
     self.cookies = cookies
     self.request = request
     self.loginCompletionHandler = loginCompletionHandler
     self.loginCancelHandler = loginCancelHandler
     self.bookFoundHandler = bookFoundHandler
-    self.loginScreenHandler = loginScreenHandler
+    self.autoPresentIfNeeded = autoPresentIfNeeded
     super.init()
   }
 }
 
 @objcMembers
 class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
+  private let uuid: String = UUID().uuidString
+  private static var automaticBrowserStroage: [String: NYPLCookiesWebViewController] = [:]
   var model: CookiesWebViewModel! // must be set before view loads
   private var domainCookies: [String: [HTTPCookie]] = [:]
   private let webView = WKWebView()
@@ -58,6 +60,10 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
 
   override func viewDidLoad() {
     super.viewDidLoad()
+
+    if model.autoPresentIfNeeded {
+      NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = self
+    }
 
 //    if #available(iOS 13.0, *) {
 //      // iOS 13 brings new page like presentation for modals, this prevents the interactive dismiss gesture
@@ -87,6 +93,11 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
     }
   }
 
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
+  }
+
   @objc private func didSelectCancel() {
     (navigationController?.presentingViewController ?? presentingViewController)?.dismiss(animated: true, completion: { [model] in model?.loginCancelHandler?() })
   }
@@ -103,7 +114,7 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
 
           webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [model, weak self] (cookies) in
             loginHandler(destination, cookies)
-            return
+            NYPLCookiesWebViewController.automaticBrowserStroage[self?.uuid ?? ""] = nil
           }
 
         } else {
@@ -136,7 +147,10 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
           decisionHandler(.cancel)
           webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
             bookHandler(self?.previousRequest, cookies)
-            return
+            NYPLCookiesWebViewController.automaticBrowserStroage[self?.uuid ?? ""] = nil
+            if self?.model.autoPresentIfNeeded == true {
+              (self?.navigationController?.presentingViewController ?? self?.presentingViewController)?.dismiss(animated: true, completion: nil)
+            }
           }
         } else {
           decisionHandler(.allow)
@@ -151,6 +165,7 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
 
   private var loginScreenHandlerOnceOnly = true
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    guard model.autoPresentIfNeeded else { return }
     // delay is needed in case IDP will want to do a redirect after initial load (from within the page)
     OperationQueue.current?.underlyingQueue?.asyncAfter(deadline: .now() + 0.5) { [weak self] in
       guard let self = self else { return }
@@ -159,9 +174,9 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
       guard self.loginScreenHandlerOnceOnly else { return }
       self.loginScreenHandlerOnceOnly = false
 
-      if let loginHandler = self.model.loginScreenHandler {
-        loginHandler()
-      }
+      let navigationWrapper = UINavigationController(rootViewController: self)
+      NYPLRootTabBarController.shared()?.safelyPresentViewController(navigationWrapper, animated: true, completion: nil)
+      NYPLCookiesWebViewController.automaticBrowserStroage[self.uuid] = nil
     }
   }
 }
