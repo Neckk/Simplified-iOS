@@ -293,7 +293,7 @@ static const NSInteger sSection1Sync = 1;
   void (^insertCredentials)(AccountDetailsAuthentication *, NSMutableArray *section) = ^(AccountDetailsAuthentication *authenticationMethod, NSMutableArray *section) {
     if (authenticationMethod.oauthIntermediaryUrl) {
       [section addObject:@(CellKindLogInSignOut)];
-    } else if (authenticationMethod.selectedSamlIdp && self.businessLogic.userAccount.hasCredentials) {
+    } else if (authenticationMethod.samlIdps.count > 0 && self.businessLogic.userAccount.hasCredentials) {
       [section addObject:@(CellKindLogInSignOut)];
     } else if (authenticationMethod.samlIdps.count > 0) {
       for (SamlIDP *idp in authenticationMethod.samlIdps) {
@@ -627,7 +627,6 @@ static const NSInteger sSection1Sync = 1;
     [[NYPLMyBooksDownloadCenter sharedDownloadCenter] reset:self.selectedAccountId];
     [[NYPLBookRegistry sharedRegistry] reset:self.selectedAccountId];
     [self.businessLogic.userAccount removeAll];
-    self.businessLogic.selectedAuthentication.selectedSamlIdp = nil;
     self.businessLogic.selectedIDP = nil;
     [self setupTableData];
     [self removeActivityTitle];
@@ -650,7 +649,6 @@ static const NSInteger sSection1Sync = 1;
     [[NYPLBookRegistry sharedRegistry] reset:self.selectedAccountId];
     
     [self.businessLogic.userAccount removeAll];
-    self.businessLogic.selectedAuthentication.selectedSamlIdp = nil;
     self.businessLogic.selectedIDP = nil;
     [self setupTableData];
   };
@@ -876,8 +874,6 @@ static const NSInteger sSection1Sync = 1;
         if (self.cookies) {
           [self.businessLogic.userAccount setCookies:self.cookies];
         }
-//        [self.businessLogic.userAccount.authDefinition setSelectedSamlIdp:self.businessLogic.selectedIDP];
-        [self.businessLogic.selectedAuthentication setSelectedSamlIdp:self.businessLogic.selectedIDP];
       } else {
         [self.businessLogic.userAccount setBarcode:self.usernameTextField.text PIN:self.PINTextField.text];
       }

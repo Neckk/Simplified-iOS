@@ -757,15 +757,6 @@ didCompleteWithError:(NSError *)error
       // Actually download the book.
       NSURL *URL = book.defaultAcquisition.hrefURL;
 
-//      if (NYPLUserAccount.sharedAccount.authDefinition.selectedSamlIdp) {
-//        NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:URL resolvingAgainstBaseURL:true];
-//
-//        // add params
-//        NSURLQueryItem *redirect_uri = [[NSURLQueryItem alloc] initWithName:@"redirect_uri" value:@"https://skyneck.pl/login"];
-//        urlComponents.queryItems = [[[NSArray new] arrayByAddingObjectsFromArray:urlComponents.queryItems] arrayByAddingObject:redirect_uri];
-//        URL = urlComponents.URL;
-//      }
-
       NSURLRequest *request;
       if (initedRequest) {
         request = initedRequest;
@@ -782,7 +773,7 @@ didCompleteWithError:(NSError *)error
         return;
       }
 
-      if (NYPLUserAccount.sharedAccount.authDefinition.selectedSamlIdp && state != NYPLBookStateSAMLStarted) {
+      if (NYPLUserAccount.sharedAccount.cookies && state != NYPLBookStateSAMLStarted) {
         [[NYPLBookRegistry sharedRegistry] setState:NYPLBookStateSAMLStarted forIdentifier:book.identifier];
 //        [self broadcastUpdate];
 

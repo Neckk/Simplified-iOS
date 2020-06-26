@@ -221,7 +221,7 @@ CGFloat const marginPadding = 2.0;
   void (^insertCredentials)(AccountDetailsAuthentication *, NSMutableArray *section) = ^(AccountDetailsAuthentication *authenticationMethod, NSMutableArray *section) {
     if (authenticationMethod.oauthIntermediaryUrl) {
       [section addObject:@(CellKindLogInSignOut)];
-    } else if (authenticationMethod.selectedSamlIdp && self.businessLogic.userAccount.hasCredentials) {
+    } else if (authenticationMethod.samlIdps.count > 0 && self.businessLogic.userAccount.hasCredentials) {
       [section addObject:@(CellKindLogInSignOut)];
     } else if (authenticationMethod.samlIdps.count > 0) {
       for (SamlIDP *idp in authenticationMethod.samlIdps) {
@@ -1222,7 +1222,6 @@ completionHandler:(void (^)(void))handler
         if (self.cookies) {
           [self.businessLogic.userAccount setCookies:self.cookies];
         }
-        [self.businessLogic.selectedAuthentication setSelectedSamlIdp:self.businessLogic.selectedIDP];
       } else {
         [self.businessLogic.userAccount setBarcode:self.usernameTextField.text PIN:self.PINTextField.text];
       }

@@ -50,7 +50,6 @@ class SamlIDP: NSObject, Codable {
     let oauthIntermediaryUrl:URL?
     let methodDescription: String?
 
-    var selectedSamlIdp: SamlIDP?
     let samlIdps: [SamlIDP]?
 
     init(auth: OPDS2AuthenticationDocument.Authentication) {
@@ -129,7 +128,6 @@ class SamlIDP: NSObject, Codable {
       oauthIntermediaryUrl = authentication.oauthIntermediaryUrl
       methodDescription = authentication.methodDescription
       samlIdps = authentication.samlIdps
-      selectedSamlIdp = authentication.selectedSamlIdp
     }
   }
 

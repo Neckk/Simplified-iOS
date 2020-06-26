@@ -151,7 +151,8 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
 
   private var loginScreenHandlerOnceOnly = true
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-    OperationQueue.current?.underlyingQueue?.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+    // delay is needed in case IDP will want to do a redirect after initial load (from within the page)
+    OperationQueue.current?.underlyingQueue?.asyncAfter(deadline: .now() + 0.5) { [weak self] in
       guard let self = self else { return }
       guard !self.webView.isLoading else { return }
       guard !self.wasBookFounded else { return }
