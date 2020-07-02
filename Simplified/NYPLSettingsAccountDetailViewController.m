@@ -322,6 +322,15 @@ static const NSInteger sSection1Sync = 1;
     // user needs to sign in
     section0AcctInfo = @[].mutableCopy;
 
+    NSUInteger samlIndex = [self.businessLogic.libraryAccount.details.auths indexOfObjectPassingTest:^BOOL(AccountDetailsAuthentication * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+      return obj.samlIdps.count > 0;
+    }];
+
+    if (samlIndex != NSNotFound) {
+      NSString *libraryInfo = [NSString stringWithFormat:@"Log in to %@ required to download materials.", self.businessLogic.libraryAccount.name];
+      [section0AcctInfo addObject:[[InfoHeaderCellType alloc] initWithInformation:libraryInfo]];
+    }
+
     if (self.businessLogic.libraryAccount.details.auths.count > 1) {
       // multiple authentication methods
       for (AccountDetailsAuthentication *authenticationMethod in self.businessLogic.libraryAccount.details.auths) {
@@ -477,6 +486,7 @@ static const NSInteger sSection1Sync = 1;
     }
                                                            loginCancelHandler:nil
                                                              bookFoundHandler:nil
+                                                             problemFoundHandler:nil
                                                            autoPresentIfNeeded:NO];
     NYPLCookiesWebViewController *cookiesVC = [[NYPLCookiesWebViewController alloc] initWithModel:model];
     UINavigationController *navigationWrapper = [[UINavigationController alloc] initWithRootViewController:cookiesVC];
@@ -919,6 +929,9 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
     self.businessLogic.selectedIDP = idpCell.idp;
     [self logIn];
     return;
+  } else if ([sectionArray[indexPath.row] isKindOfClass:[InfoHeaderCellType class]]) {
+    [self.tableView deselectRowAtIndexPath:indexPath animated:YES];
+    return;
   }
 
   CellKind cellKind = (CellKind)[sectionArray[indexPath.row] intValue];
@@ -1137,12 +1150,13 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
     return cell;
   } else if ([sectionArray[indexPath.row] isKindOfClass:[SamlIdpCellType class]]) {
     SamlIdpCellType *idpCell = sectionArray[indexPath.row];
-    UITableViewCell *cell = [[UITableViewCell alloc]
-                             initWithStyle:UITableViewCellStyleDefault
-                             reuseIdentifier:nil];
-    cell.indentationLevel = 1;
-    cell.textLabel.font = [UIFont customFontForTextStyle:UIFontTextStyleSubheadline];
-    cell.textLabel.text = idpCell.idp.displayName;
+    SamlIDPCell *cell = [[SamlIDPCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil];
+    cell.idpName.text = idpCell.idp.displayName;
+    return cell;
+  } else if ([sectionArray[indexPath.row] isKindOfClass:[InfoHeaderCellType class]]) {
+    InfoHeaderCellType *infoCell = sectionArray[indexPath.row];
+    LibraryDescriptionCell *cell = [[LibraryDescriptionCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil];
+    cell.descriptionLabel.text = infoCell.information;
     return cell;
   }
 

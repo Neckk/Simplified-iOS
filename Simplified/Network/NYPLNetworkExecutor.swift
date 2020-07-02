@@ -162,8 +162,10 @@ extension NYPLNetworkExecutor {
     ///   - completion: Always called when the resource is either fetched from
     /// the network or from the cache.
     @objc func GET(_ reqURL: URL,
+                   cachePolicy: NSURLRequest.CachePolicy = .useProtocolCachePolicy,
                    completion: @escaping (_ result: Data?, _ response: URLResponse?,  _ error: Error?) -> Void) -> URLSessionDataTask {
-        let req = request(for: reqURL)
+        var req = request(for: reqURL)
+        req.cachePolicy = cachePolicy
         let completionWrapper: (_ result: NYPLResult<Data>) -> Void = { result in
             switch result {
             case let .success(data, response): completion(data, response, nil)

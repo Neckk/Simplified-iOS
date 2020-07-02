@@ -301,27 +301,35 @@ didFinishDownloadingToURL:(NSURL *const)location
   
   if (!success) {
     dispatch_async(dispatch_get_main_queue(), ^{
-      if (needsAuth) {
-        NYPLLOG(@"Present sign in VC");
-        [NYPLAccountSignInViewController
-         requestCredentialsUsingExistingBarcode:NO
-         completionHandler:^{
+      if (problemDocument) {
+        if ([problemDocument.type isEqualToString:NYPLProblemDocument.TypeInvalidCredentials]) {
+          NYPLLOG(@"Invalid credentials problem, present sign in VC");
+          [NYPLAccountSignInViewController
+           requestCredentialsUsingExistingBarcode:NO
+           completionHandler:^{
             [[NYPLMyBooksDownloadCenter sharedDownloadCenter] startDownloadForBook:book];
-        }];
-      } else {
-        NSString *formattedMessage = [NSString stringWithFormat:NSLocalizedString(@"DownloadCouldNotBeCompletedFormat", nil), book.title];
-        UIAlertController *alert = [NYPLAlertUtils
-                                    alertWithTitle:@"DownloadFailed"
-                                    message:formattedMessage];
-        if (problemDocument) {
+          }];
+        } else {
+          NSString *formattedMessage = [NSString stringWithFormat:NSLocalizedString(@"DownloadCouldNotBeCompletedFormat", nil), book.title];
+          UIAlertController *alert = [NYPLAlertUtils
+                                      alertWithTitle:@"DownloadFailed"
+                                      message:formattedMessage];
           [[NYPLProblemDocumentCacheManager sharedInstance] cacheProblemDocument:problemDocument key:book.identifier];
           [NYPLAlertUtils setProblemDocumentWithController:alert document:problemDocument append:YES];
 
           if ([problemDocument.type isEqualToString:NYPLProblemDocument.TypeNoActiveLoan]) {
             [[NYPLBookRegistry sharedRegistry] removeBookForIdentifier:book.identifier];
           }
+
+          [NYPLAlertUtils presentFromViewControllerOrNilWithAlertController:alert viewController:nil animated:YES completion:nil];
         }
-        [NYPLAlertUtils presentFromViewControllerOrNilWithAlertController:alert viewController:nil animated:YES completion:nil];
+      } else if (needsAuth) {
+        NYPLLOG(@"Present sign in VC");
+        [NYPLAccountSignInViewController
+         requestCredentialsUsingExistingBarcode:NO
+         completionHandler:^{
+            [[NYPLMyBooksDownloadCenter sharedDownloadCenter] startDownloadForBook:book];
+        }];
       }
     });
     
@@ -532,11 +540,18 @@ didCompleteWithError:(NSError *)error
           NYPLLOG(@"Failed to create book from entry. Book not removed from registry.");
         }
       } else {
-        if([error[@"type"] isEqualToString:NYPLProblemDocument.TypeNoActiveLoan]) {
+        if ([error[@"type"] isEqualToString:NYPLProblemDocument.TypeNoActiveLoan]) {
           if(downloaded) {
             [self deleteLocalContentForBookIdentifier:identifier];
           }
           [[NYPLBookRegistry sharedRegistry] removeBookForIdentifier:identifier];
+        } else if ([error[@"type"] isEqualToString:NYPLProblemDocument.TypeInvalidCredentials]) {
+          NYPLLOG(@"Invalid credentials problem, present sign in VC");
+          [NYPLAccountSignInViewController
+           requestCredentialsUsingExistingBarcode:NO
+           completionHandler:^{
+            [[NYPLMyBooksDownloadCenter sharedDownloadCenter] returnBookWithIdentifier:identifier];
+          }];
         } else {
           [[NSOperationQueue mainQueue] addOperationWithBlock:^{
             NSString *formattedMessage = [NSString stringWithFormat:NSLocalizedString(@"ReturnCouldNotBeCompletedFormat", nil), bookTitle];
@@ -644,6 +659,14 @@ didCompleteWithError:(NSError *)error
             formattedMessage = [NSString stringWithFormat:NSLocalizedString(@"You have already checked out this loan. You may need to refresh your My Books list to download the title.",
                                                                             comment: @"When book is already checked out on patron's other device(s), they will get this message"), book.title];
             alert = [NYPLAlertUtils alertWithTitle:@"BorrowFailed" message:formattedMessage];
+          } if ([error[@"type"] isEqualToString:NYPLProblemDocument.TypeInvalidCredentials]) {
+            NYPLLOG(@"Invalid credentials problem, present sign in VC");
+            [NYPLAccountSignInViewController
+             requestCredentialsUsingExistingBarcode:NO
+             completionHandler:^{
+              [[NYPLMyBooksDownloadCenter sharedDownloadCenter] startDownloadForBook:book];
+            }];
+            return;
           } else {
             [NYPLAlertUtils setProblemDocumentWithController:alert document:[NYPLProblemDocument fromDictionary:error] append:YES];
           }
@@ -760,7 +783,7 @@ didCompleteWithError:(NSError *)error
       if (initedRequest) {
         request = initedRequest;
       } else {
-        request = [NYPLNetworkExecutor bearerAuthorizedWithRequest:[NSURLRequest requestWithURL:URL]];
+        request = [[NYPLNetworkExecutor bearerAuthorizedWithRequest:[NSURLRequest requestWithURL:URL]] mutableCopy];
       }
 
       if(!request.URL) {
@@ -781,6 +804,8 @@ didCompleteWithError:(NSError *)error
         dispatch_async(dispatch_get_main_queue(), ^{
           __weak NYPLMyBooksDownloadCenter *weakSelf = self;
 
+          mutableRequest.cachePolicy = NSURLRequestReloadIgnoringCacheData;
+
           CookiesWebViewModel *model = [[CookiesWebViewModel alloc] initWithCookies:someCookies
                                                                             request:mutableRequest
                                                              loginCompletionHandler:nil
@@ -792,7 +817,15 @@ didCompleteWithError:(NSError *)error
             [NYPLUserAccount.sharedAccount setCookies:cookies];
             [weakSelf startDownloadForBook:book withRequest:request];
           }
-                                                                 autoPresentIfNeeded:YES]; // <- this will cause a web view to retain a cycle
+                                                                problemFoundHandler:^(NYPLProblemDocument * _Nullable problemDocument) {
+            [[NYPLBookRegistry sharedRegistry] setState:NYPLBookStateDownloadNeeded forIdentifier:book.identifier];
+            [NYPLAccountSignInViewController
+             requestCredentialsUsingExistingBarcode:NO
+             completionHandler:^{
+              [[NYPLMyBooksDownloadCenter sharedDownloadCenter] startDownloadForBook:book];
+            }];
+          }
+                                                                autoPresentIfNeeded:YES]; // <- this will cause a web view to retain a cycle
 
           NYPLCookiesWebViewController *cookiesVC = [[NYPLCookiesWebViewController alloc] initWithModel:model];
           [cookiesVC loadViewIfNeeded];
@@ -837,6 +870,13 @@ didCompleteWithError:(NSError *)error
          object:self];
       }
     }
+
+  } else {
+    [NYPLAccountSignInViewController
+     requestCredentialsUsingExistingBarcode:NO
+     completionHandler:^{
+       [[NYPLMyBooksDownloadCenter sharedDownloadCenter] startDownloadForBook:book];
+     }];
   }
 }
 

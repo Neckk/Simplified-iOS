@@ -207,7 +207,7 @@ private enum StorageKey: String {
   private lazy var _authDefinition: KeychainCodableVariable<AccountDetails.Authentication> = StorageKey.authDefinition
     .keyForLibrary(uuid: libraryUUID)
     .asKeychainCodableVariable(with: accountInfoLock)
-  private lazy var _cookies: KeychainVariable<[HTTPCookie]> = StorageKey.authDefinition
+  private lazy var _cookies: KeychainVariable<[HTTPCookie]> = StorageKey.cookies
     .keyForLibrary(uuid: libraryUUID)
     .asKeychainVariable(with: accountInfoLock)
 

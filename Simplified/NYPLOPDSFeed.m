@@ -63,7 +63,9 @@ static NYPLOPDSFeedType TypeImpliedByEntry(NYPLOPDSEntry *const entry)
   }
 
   __block NSURLRequest *request = nil;
-  request = [[[NYPLNetworkExecutor shared] GET:URL completion:^(NSData *data, NSURLResponse *response, NSError *error) {
+  request = [[[NYPLNetworkExecutor shared] GET:URL
+                                   cachePolicy:NSURLRequestReloadIgnoringCacheData
+                                    completion:^(NSData *data, NSURLResponse *response, NSError *error) {
 
     if (error != nil) {
       // NYPLSession already logged this.

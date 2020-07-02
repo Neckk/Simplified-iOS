@@ -106,9 +106,9 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *const)challenge
 
   NSString *lpe = [URL lastPathComponent];
   if ([lpe isEqualToString:@"borrow"])
-    req = [NYPLNetworkExecutor.shared PUT:URL completion:completionWrapper];
+    req = [[NYPLNetworkExecutor.shared PUT:URL completion:completionWrapper] originalRequest];
   else
-      req = [NYPLNetworkExecutor.shared GET:URL completion:completionWrapper];
+    req = [[NYPLNetworkExecutor.shared GET:URL cachePolicy:NSURLRequestUseProtocolCachePolicy completion:completionWrapper] originalRequest];
 
   return req;
 }

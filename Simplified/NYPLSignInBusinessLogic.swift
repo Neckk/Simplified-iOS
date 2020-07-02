@@ -11,23 +11,24 @@ import UIKit
 @objcMembers
 class NYPLSignInBusinessLogic: NSObject {
 
-  @objc let libraryAccountID: String
+  let libraryAccountID: String
   private let permissionsCheckLock = NSLock()
-  @objc let requestTimeoutInterval: TimeInterval = 25.0
+  let requestTimeoutInterval: TimeInterval = 25.0
 
-  @objc init(libraryAccountID: String) {
+  init(libraryAccountID: String) {
     self.libraryAccountID = libraryAccountID
     super.init()
   }
 
-  @objc var libraryAccount: Account? {
+  var libraryAccount: Account? {
     return AccountsManager.shared.account(libraryAccountID)
   }
 
-  @objc var selectedIDP: SamlIDP?
-
+  var selectedIDP: SamlIDP?
+  var forceLogIn: Bool = false
+  var sessionRefreshed: Bool = false
   private var _selectedAuthentication: AccountDetails.Authentication?
-  @objc var selectedAuthentication: AccountDetails.Authentication? {
+  var selectedAuthentication: AccountDetails.Authentication? {
     get {
       guard _selectedAuthentication == nil else { return _selectedAuthentication }
       guard userAccount.authDefinition == nil else { return userAccount.authDefinition }
@@ -41,11 +42,11 @@ class NYPLSignInBusinessLogic: NSObject {
     }
   }
 
-  @objc var userAccount: NYPLUserAccount {
+  var userAccount: NYPLUserAccount {
     return NYPLUserAccount.sharedAccount(libraryUUID: libraryAccountID)
   }
 
-  @objc func librarySupportsBarcodeDisplay() -> Bool {
+  func librarySupportsBarcodeDisplay() -> Bool {
     // For now, only supports libraries granted access in Accounts.json,
     // is signed in, and has an authorization ID returned from the loans feed.
     return userAccount.hasBarcodeAndPIN() &&
@@ -53,11 +54,11 @@ class NYPLSignInBusinessLogic: NSObject {
       (selectedAuthentication?.supportsBarcodeDisplay ?? false)
   }
 
-  @objc func isSignedIn() -> Bool {
-    return userAccount.hasCredentials()
+  func isSignedIn() -> Bool {
+    return (!forceLogIn || sessionRefreshed) && userAccount.hasCredentials()
   }
 
-  @objc func registrationIsPossible() -> Bool {
+  func registrationIsPossible() -> Bool {
     return !isSignedIn() && NYPLConfiguration.cardCreationEnabled() && libraryAccount?.details?.signUpUrl != nil
   }
 

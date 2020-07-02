@@ -16,14 +16,16 @@ class CookiesWebViewModel: NSObject {
   let loginCompletionHandler: ((URL, [HTTPCookie]) -> Void)?
   let loginCancelHandler: (() -> Void)?
   let bookFoundHandler: ((URLRequest?, [HTTPCookie]) -> Void)?
+  let problemFound: (((NYPLProblemDocument?)) -> Void)?
   let autoPresentIfNeeded: Bool
 
-  init(cookies: [HTTPCookie], request: URLRequest, loginCompletionHandler: ((URL, [HTTPCookie]) -> Void)?, loginCancelHandler: (() -> Void)?, bookFoundHandler: ((URLRequest?, [HTTPCookie]) -> Void)?, autoPresentIfNeeded: Bool = false) {
+  init(cookies: [HTTPCookie], request: URLRequest, loginCompletionHandler: ((URL, [HTTPCookie]) -> Void)?, loginCancelHandler: (() -> Void)?, bookFoundHandler: ((URLRequest?, [HTTPCookie]) -> Void)?, problemFoundHandler: ((NYPLProblemDocument?) -> Void)?, autoPresentIfNeeded: Bool = false) {
     self.cookies = cookies
     self.request = request
     self.loginCompletionHandler = loginCompletionHandler
     self.loginCancelHandler = loginCancelHandler
     self.bookFoundHandler = bookFoundHandler
+    self.problemFound = problemFoundHandler
     self.autoPresentIfNeeded = autoPresentIfNeeded
     super.init()
   }
@@ -80,6 +82,9 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
           webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) { [model, webView] in
             cookiesLeft -= 1
             if cookiesLeft == 0, let request = model?.request {
+              webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { (cookies) in
+                print("szyjson loaded \(cookies)")
+              }
               webView.load(request)
             }
           }
@@ -113,6 +118,7 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
           decisionHandler(.cancel)
 
           webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [model, weak self] (cookies) in
+            print("szyjson login \(cookies)")
             loginHandler(destination, cookies)
             NYPLCookiesWebViewController.automaticBrowserStroage[self?.uuid ?? ""] = nil
           }
@@ -133,7 +139,7 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
     }
   }
 
-  private var wasBookFounded = false
+  private var wasBookFound = false
   func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
 
     if let bookHandler = model.bookFoundHandler {
@@ -141,7 +147,7 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
       let supportedTypes = NYPLBookAcquisitionPath.supportedTypes()
       
       if let responseType = navigationResponse.response.mimeType, supportedTypes.contains(responseType) {
-        wasBookFounded = true
+        wasBookFound = true
 
         if #available(iOS 11.0, *) {
           decisionHandler(.cancel)
@@ -160,23 +166,44 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
       }
     }
 
+    if let problemHandler = model.problemFound {
+      if let responseType = navigationResponse.response.mimeType, responseType == "application/problem+json" || responseType == "application/api-problem+json" {
+
+        decisionHandler(.cancel)
+        let presenter = navigationController?.presentingViewController ?? presentingViewController
+        if let presentingVC = presenter, model.autoPresentIfNeeded {
+          presentingVC.dismiss(animated: true, completion: { [uuid] in
+            problemHandler(nil)
+            NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
+          })
+        } else {
+          problemHandler(nil)
+          NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
+        }
+
+        return
+      }
+    }
+
     decisionHandler(.allow)
   }
 
   private var loginScreenHandlerOnceOnly = true
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-    guard model.autoPresentIfNeeded else { return }
-    // delay is needed in case IDP will want to do a redirect after initial load (from within the page)
-    OperationQueue.current?.underlyingQueue?.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-      guard let self = self else { return }
-      guard !self.webView.isLoading else { return }
-      guard !self.wasBookFounded else { return }
-      guard self.loginScreenHandlerOnceOnly else { return }
-      self.loginScreenHandlerOnceOnly = false
 
-      let navigationWrapper = UINavigationController(rootViewController: self)
-      NYPLRootTabBarController.shared()?.safelyPresentViewController(navigationWrapper, animated: true, completion: nil)
-      NYPLCookiesWebViewController.automaticBrowserStroage[self.uuid] = nil
+    if model.autoPresentIfNeeded {
+      // delay is needed in case IDP will want to do a redirect after initial load (from within the page)
+      OperationQueue.current?.underlyingQueue?.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        guard let self = self else { return }
+        guard !self.webView.isLoading else { return }
+        guard !self.wasBookFound else { return }
+        guard self.loginScreenHandlerOnceOnly else { return }
+        self.loginScreenHandlerOnceOnly = false
+
+        let navigationWrapper = UINavigationController(rootViewController: self)
+        NYPLRootTabBarController.shared()?.safelyPresentViewController(navigationWrapper, animated: true, completion: nil)
+        NYPLCookiesWebViewController.automaticBrowserStroage[self.uuid] = nil
+      }
     }
   }
 }
