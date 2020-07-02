@@ -70,10 +70,6 @@ class KeychainVariable<VariableType>: Keyable {
       }
     }
   }
-
-  func safeWrite(_ newValue: VariableType?) {
-    write(newValue)
-  }
 }
 
 class KeychainCodableVariable<VariableType: Codable>: KeychainVariable<VariableType> {

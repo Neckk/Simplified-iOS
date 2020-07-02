@@ -369,14 +369,9 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
       if (self.currentAccount.details.supportsCardCreator
           && self.currentAccount.details.signUpUrl != nil) {
         __weak NYPLAccountSignInViewController *const weakSelf = self;
-        CardCreatorConfiguration *const configuration =
-        [[CardCreatorConfiguration alloc]
-         initWithEndpointURL:self.currentAccount.details.signUpUrl ?: APIKeys.cardCreatorEndpointURL
-         endpointVersion:[APIKeys cardCreatorVersion]
-         endpointUsername:APIKeys.cardCreatorUsername
-         endpointPassword:APIKeys.cardCreatorPassword
-         requestTimeoutInterval:20.0
-         completionHandler:^(NSString *const username, NSString *const PIN, BOOL const userInitiated) {
+
+        CardCreatorConfiguration *const config = [self.businessLogic makeRegularCardCreationConfiguration];
+        config.completionHandler = ^(NSString *const username, NSString *const PIN, BOOL const userInitiated) {
           if (userInitiated) {
             // Dismiss CardCreator & SignInVC when user finishes Credential Review
             [weakSelf.presentingViewController dismissViewControllerAnimated:YES completion:nil];
@@ -384,13 +379,13 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
             weakSelf.usernameTextField.text = username;
             weakSelf.PINTextField.text = PIN;
             [weakSelf updateLoginLogoutCellAppearance];
-            self.isLoggingInAfterSignUp = YES;
+            weakSelf.isLoggingInAfterSignUp = YES;
             [weakSelf logIn];
           }
-        }];
+        };
         
         UINavigationController *const navigationController =
-          [CardCreator initialNavigationControllerWithConfiguration:configuration];
+          [CardCreator initialNavigationControllerWithConfiguration:config];
         navigationController.navigationBar.topItem.leftBarButtonItem =
           [[UIBarButtonItem alloc] initWithTitle:NSLocalizedString(@"Cancel", nil)
                                            style:UIBarButtonItemStylePlain

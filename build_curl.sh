@@ -15,7 +15,7 @@ CURL_VERSION="7.64.1"
 
 DEVELOPER="/Applications/Xcode.app/Contents/Developer"
 
-SDK_VERSION="12.2"
+SDK_VERSION="13.4"
 MIN_VERSION="9.0"
 
 IPHONEOS_PLATFORM="${DEVELOPER}/Platforms/iPhoneOS.platform"

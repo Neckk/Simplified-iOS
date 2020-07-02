@@ -78,7 +78,7 @@ private enum StorageKey: String {
     }
     set {
       guard let newValue = newValue else { return }
-      _authDefinition.safeWrite(newValue)
+      _authDefinition.write(newValue)
 
       DispatchQueue.main.async {
         var mainFeed = URL(string: AccountsManager.shared.currentAccount?.catalogUrl ?? "")
@@ -133,7 +133,7 @@ private enum StorageKey: String {
     set {
       guard let newValue = newValue else { return }
 
-      _credentials.safeWrite(newValue)
+      _credentials.write(newValue)
 
       // make sure to set the barcode related to the current account (aka library)
       // not the one we just signed in to, because we could have signed in into
@@ -158,9 +158,7 @@ private enum StorageKey: String {
     defer {
       shared.accountInfoLock.unlock()
     }
-    if let uuid = libraryUUID,
-      uuid != AccountsManager.NYPLAccountUUIDs[0]
-    {
+    if let uuid = libraryUUID, uuid != AccountsManager.NYPLAccountUUID {
       shared.libraryUUID = uuid
     } else {
       shared.libraryUUID = nil
@@ -257,6 +255,54 @@ private enum StorageKey: String {
     return authDefinition?.isCatalogSecured ?? false
   }
 
+  // MARK: - Legacy
+  
+  private var legacyBarcode: String? { return _barcode.read() }
+  private var legacyPin: String? { return _pin.read() }
+  var legacyAuthToken: String? { _authToken.read() }
+
+  // MARK: - GET
+
+  /// The barcode of this user; for NYPL, this is either an actual barcode
+  /// or a username.
+  /// You should be able to use either one as authentication with the
+  /// circulation manager and platform.nypl.org, because they both pass auth
+  /// information to the ILS, which is the source of truth. The ILS will
+  /// validate credentials the same whether the patron identifier is a
+  /// username or one of their barcodes. However, it's possible that some
+  /// features of platform.nypl.org will work if you give them a 14-digit
+  /// barcode but not a 7-letter username or a 16-digit NYC ID.
+  var barcode: String? {
+    if let credentials = credentials, case let Credentials.barcodeAndPin(barcode: barcode, pin: _) = credentials {
+      return barcode
+    } else {
+      return nil
+    }
+  }
+
+  /// For any library but the NYPL, this identifier can be anything they want.
+  ///
+  /// For NYPL, this is *a* barcode, either a 14-digit NYPL-issued barcode, or
+  /// a 16-digit "NYC ID" barcode issued by New York City. It's in fact
+  /// possible for NYC residents to get a NYC ID and set that up **as a**
+  /// NYPL barcode, even if they already have a NYPL card. We use
+  /// authorization_identifier to mean the "number that's probably on the
+  ///  piece of plastic the patron uses as their library card".
+  /// - Note: A patron can have multiple barcodes, because patrons may lose
+  /// their library card and get a new one with a different barcode.
+  /// Authenticating with any of those barcodes should work.
+  /// - Note: This is NOT the unique ILS ID. That's internal-only and it's not
+  /// exposed to the public.
+  var authorizationIdentifier: String? { _authorizationIdentifier.read() }
+
+  var PIN: String? {
+    if let credentials = credentials, case let Credentials.barcodeAndPin(barcode: _, pin: pin) = credentials {
+      return pin
+    } else {
+      return nil
+    }
+  }
+
   var needsAuth:Bool {
     let authType = authDefinition?.authType ?? .none
     return authType == .basic || authType == .oauthIntermediary || authType == .saml
@@ -267,14 +313,8 @@ private enum StorageKey: String {
     return authType == .coppa
   }
 
-  // MARK: - Legacy
-  private var legacyBarcode: String? { return _barcode.read() }
-  private var legacyPin: String? { return _pin.read() }
-  var legacyAuthToken: String? { _authToken.read() }
-
-  // MARK: - GET
-  var authorizationIdentifier: String? { _authorizationIdentifier.read() }
   var deviceID: String? { _deviceID.read() }
+  /// The user ID to use with Adobe DRM.
   var userID: String? { _userID.read() }
   var adobeVendor: String? { _adobeVendor.read() }
   var provider: String? { _provider.read() }
@@ -282,22 +322,6 @@ private enum StorageKey: String {
   var adobeToken: String? { _adobeToken.read() }
   var licensor: [String:Any]? { _licensor.read() }
   var cookies: [HTTPCookie]? { _cookies.read() }
-
-  var barcode: String? {
-    if let credentials = credentials, case let Credentials.barcodeAndPin(barcode: barcode, pin: _) = credentials {
-      return barcode
-    } else {
-      return nil
-    }
-  }
-
-  var PIN: String? {
-    if let credentials = credentials, case let Credentials.barcodeAndPin(barcode: _, pin: pin) = credentials {
-      return pin
-    } else {
-      return nil
-    }
-  }
 
   var authToken: String? {
     if let credentials = credentials, case let Credentials.token(authToken: token) = credentials {
@@ -357,29 +381,35 @@ private enum StorageKey: String {
   
   @objc(setAdobeVendor:)
   func setAdobeVendor(_ vendor: String) {
-    _adobeVendor.safeWrite(vendor)
+    _adobeVendor.write(vendor)
     notifyAccountDidChange()
   }
   
   @objc(setAdobeToken:)
   func setAdobeToken(_ token: String) {
-    _adobeToken.safeWrite(token)
+    _adobeToken.write(token)
     notifyAccountDidChange()
   }
   
   @objc(setLicensor:)
   func setLicensor(_ licensor: [String : Any]) {
-    _licensor.safeWrite(licensor)
+    _licensor.write(licensor)
   }
-  
+
+  /// This authorization identifier is returned by the circulation manager
+  /// upon successful sign-in.
+  /// - parameter identifier: For NYPL, this can either be
+  /// a 14-digit NYPL-issued barcode, or a 16-digit "NYC ID"
+  /// barcode issued by New York City. For other libraries,
+  /// this can be any string they want.
   @objc(setAuthorizationIdentifier:)
   func setAuthorizationIdentifier(_ identifier: String) {
-    _authorizationIdentifier.safeWrite(identifier)
+    _authorizationIdentifier.write(identifier)
   }
   
   @objc(setPatron:)
   func setPatron(_ patron: [String : Any]) {
-    _patron.safeWrite(patron)
+    _patron.write(patron)
     notifyAccountDidChange()
   }
   
@@ -396,19 +426,20 @@ private enum StorageKey: String {
 
   @objc(setProvider:)
   func setProvider(_ provider: String) {
-    _provider.safeWrite(provider)
+    _provider.write(provider)
     notifyAccountDidChange()
   }
-  
+
+  /// - parameter id: The user ID to use for Adobe DRM.
   @objc(setUserID:)
   func setUserID(_ id: String) {
-    _userID.safeWrite(id)
+    _userID.write(id)
     notifyAccountDidChange()
   }
   
   @objc(setDeviceID:)
   func setDeviceID(_ id: String) {
-    _deviceID.safeWrite(id)
+    _deviceID.write(id)
     notifyAccountDidChange()
   }
     
