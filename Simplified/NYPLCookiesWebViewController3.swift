@@ -32,7 +32,7 @@ class CookiesWebViewModel: NSObject {
 }
 
 @objcMembers
-class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
+class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHandler {
   private let uuid: String = UUID().uuidString
   private static var automaticBrowserStroage: [String: NYPLCookiesWebViewController] = [:]
   var model: CookiesWebViewModel! // must be set before view loads
@@ -47,6 +47,12 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
   init() {
     super.init(nibName: nil, bundle: nil)
 
+    webView.configuration.preferences.javaScriptEnabled = true
+    let cookieOutScript = WKUserScript(source: "window.webkit.messageHandlers.updateCookies.postMessage(document.cookie);", injectionTime: .atDocumentStart, forMainFrameOnly: false)
+    webView.configuration.userContentController.addUserScript(cookieOutScript)
+    webView.configuration.userContentController.add(self, name: "updateCookies")
+
+//    webView.configuration.websiteDataStore = WKWebsiteDataStore.nonPersistent()
 //    webView.configuration.websiteDataStore = WKWebsiteDataStore.default()
   }
 
@@ -54,6 +60,11 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
     self.model = model
     super.init(nibName: nil, bundle: nil)
 
+    let cookieOutScript = WKUserScript(source: "window.webkit.messageHandlers.updateCookies.postMessage(document.cookie);", injectionTime: .atDocumentStart, forMainFrameOnly: false)
+    webView.configuration.userContentController.addUserScript(cookieOutScript)
+    webView.configuration.userContentController.add(self, name: "updateCookies")
+
+//    webView.configuration.websiteDataStore = WKWebsiteDataStore.nonPersistent()
 //    webView.configuration.websiteDataStore = WKWebsiteDataStore.default()
   }
 
@@ -114,6 +125,10 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
 
     previousRequest = navigationAction.request
 
+    webView.evaluateJavaScript("document.cookie") { (result, error) in
+      print("szyjson script inline \(navigationAction.request.url?.absoluteString) \(result) \(error)")
+    }
+
     if let loginHandler = model.loginCompletionHandler {
       // if want to receive a login callback
       if let destination = navigationAction.request.url, destination.absoluteString.hasPrefix("https://skyneck.pl/login") {
@@ -127,13 +142,6 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
             NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
           }
         } else {
-          print("szyjson login shared pre \(HTTPCookieStorage.shared.cookies)")
-          webView.configuration.processPool = WKProcessPool()
-          OperationQueue.current?.underlyingQueue?.asyncAfter(deadline: .now() + 5) {
-            // it may take some time to update cookies storage
-            print("szyjson login shared post \(HTTPCookieStorage.shared.cookies)")
-          }
-
           loginHandler(destination, rawCookies)
           NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
         }
@@ -142,19 +150,32 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
       }
     }
 
+    if #available(iOS 11.0, *) { } else {
+      let isCustomRequest = navigationAction.request.value(forHTTPHeaderField: "x-custom-header") != nil
+      let domainCookies = rawCookies.filter { $0.domain == navigationAction.request.url?.host }
+
+      if !isCustomRequest && !domainCookies.isEmpty {
+        // if  already a custom request or there are no cookies to set - continue
+
+        decisionHandler(.cancel)
+        loadWebPage(request: navigationAction.request)
+        return
+      }
+    }
+
     decisionHandler(.allow)
   }
 
-  // use for ios < 11 only, it injects cookies for a given domain
+  // use for ios < 11 only
   private func loadWebPage(request: URLRequest)  {
     var mutableRequest = request
 
-//    mutableRequest.setValue("true", forHTTPHeaderField: "x-custom-header")
-//
-//    let headers = HTTPCookie.requestHeaderFields(with: rawCookies.filter { $0.domain == mutableRequest.url?.host })
-//    for (name, value) in headers {
-//      mutableRequest.addValue(value, forHTTPHeaderField: name)
-//    }
+    mutableRequest.setValue("true", forHTTPHeaderField: "x-custom-header")
+
+    let headers = HTTPCookie.requestHeaderFields(with: rawCookies.filter { $0.domain == mutableRequest.url?.host })
+    for (name, value) in headers {
+      mutableRequest.addValue(value, forHTTPHeaderField: name)
+    }
 
     webView.load(mutableRequest)
   }
@@ -173,9 +194,6 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
         if #available(iOS 11.0, *) {
 
           webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [uuid, weak self] cookies in
-            print("szyjson book \(cookies)")
-            print("szyjson book old \(self?.rawCookies)")
-
             bookHandler(self?.previousRequest, cookies)
             NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
             if self?.model.autoPresentIfNeeded == true {
@@ -183,12 +201,6 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
             }
           }
         } else {
-
-          print("szyjson book shared pre \(HTTPCookieStorage.shared.cookies)")
-          webView.configuration.processPool = WKProcessPool()
-          OperationQueue.current?.underlyingQueue?.asyncAfter(deadline: .now() + 5) {
-            print("szyjson login book post \(HTTPCookieStorage.shared.cookies)")
-          }
 
           bookHandler(previousRequest, rawCookies)
           NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
@@ -242,6 +254,18 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
       }
     }
   }
+
+  func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+//    let cookies: [String]? = (message.body as? String)?.components(separatedBy: "; ")
+    print("szyjson script callback \(message.body)")
+//    for cookie in cookies {
+//      let comps: [String] = cookie.components(separatedBy: "=")
+//      if comps.count < 2 {
+//        continue
+//      }
+//    }
+
+  }
 }
 
 extension NYPLCookiesWebViewController: UIAdaptivePresentationControllerDelegate {
@@ -250,3 +274,23 @@ extension NYPLCookiesWebViewController: UIAdaptivePresentationControllerDelegate
   }
 }
 
+extension WKWebView {
+  func evaluate(script: String, completion: @escaping (_ result: AnyObject?, _ error: NSError?) -> Void) {
+    var finished = false
+
+    evaluateJavaScript(script) { (result, error) in
+      if error == nil {
+        if result != nil {
+          completion(result as AnyObject?, nil)
+        }
+      } else {
+        completion(nil, error as NSError?)
+      }
+      finished = true
+    }
+
+    while !finished {
+      RunLoop.current.run(mode: .default, before: Date.distantFuture)
+    }
+  }
+}

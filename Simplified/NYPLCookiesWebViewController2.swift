@@ -78,22 +78,22 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
     if !model.cookies.isEmpty {
       var cookiesLeft = model.cookies.count
       for cookie in model.cookies {
-        if #available(iOS 11.0, *) {
-          webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) { [model, webView] in
-            cookiesLeft -= 1
-            if cookiesLeft == 0, let request = model?.request {
-              webView.load(request)
+          if #available(iOS 11.0, *) {
+            webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) { [model, webView] in
+              cookiesLeft -= 1
+              if cookiesLeft == 0, let request = model?.request {
+                webView.load(request)
+              }
             }
-          }
-        } else {
+          } else {
           // Fallback on earlier versions
           // load cookies in request for old iOSes
-          self.cookies[cookie.domain + cookie.name] = cookie
+            self.cookies[cookie.domain + cookie.name] = cookie
 
-          cookiesLeft -= 1
-          if cookiesLeft == 0, let request = model?.request {
-            loadWebPage(request: request)
-          }
+            cookiesLeft -= 1
+            if cookiesLeft == 0, let request = model?.request {
+              loadWebPage(request: request)
+            }
         }
       }
     } else {
@@ -118,22 +118,15 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
       // if want to receive a login callback
       if let destination = navigationAction.request.url, destination.absoluteString.hasPrefix("https://skyneck.pl/login") {
         // if login finished
-
         decisionHandler(.cancel)
 
         if #available(iOS 11.0, *) {
-          webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [uuid, unowned self] (cookies) in
+          webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [uuid] (cookies) in
             loginHandler(destination, cookies)
             NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
           }
         } else {
-          print("szyjson login shared pre \(HTTPCookieStorage.shared.cookies)")
-          webView.configuration.processPool = WKProcessPool()
-          OperationQueue.current?.underlyingQueue?.asyncAfter(deadline: .now() + 5) {
-            // it may take some time to update cookies storage
-            print("szyjson login shared post \(HTTPCookieStorage.shared.cookies)")
-          }
-
+          print("szyjson login \(cookies)")
           loginHandler(destination, rawCookies)
           NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
         }
@@ -142,25 +135,51 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
       }
     }
 
+    if #available(iOS 11.0, *) { } else {
+      let isCustomRequest = navigationAction.request.value(forHTTPHeaderField: "x-custom-header") != nil
+      let domainCookies = rawCookies.filter { $0.domain == navigationAction.request.url?.host }
+
+      if !isCustomRequest && !domainCookies.isEmpty {
+        // if  already a custom request or there are no cookies to set - continue
+
+        decisionHandler(.cancel)
+        loadWebPage(request: navigationAction.request)
+        return
+      }
+    }
+
     decisionHandler(.allow)
   }
 
-  // use for ios < 11 only, it injects cookies for a given domain
+  // use for ios < 11 only
   private func loadWebPage(request: URLRequest)  {
     var mutableRequest = request
 
-//    mutableRequest.setValue("true", forHTTPHeaderField: "x-custom-header")
-//
-//    let headers = HTTPCookie.requestHeaderFields(with: rawCookies.filter { $0.domain == mutableRequest.url?.host })
-//    for (name, value) in headers {
-//      mutableRequest.addValue(value, forHTTPHeaderField: name)
-//    }
+    mutableRequest.setValue("true", forHTTPHeaderField: "x-custom-header")
+
+    let headers = HTTPCookie.requestHeaderFields(with: rawCookies.filter { $0.domain == mutableRequest.url?.host })
+    for (name, value) in headers {
+      mutableRequest.addValue(value, forHTTPHeaderField: name)
+    }
 
     webView.load(mutableRequest)
   }
 
   private var wasBookFound = false
   func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+
+    if #available(iOS 11.0, *) { } else {
+      // save new cookies for old iOS
+      if let response = navigationResponse.response as? HTTPURLResponse,
+        let allHttpHeaders = response.allHeaderFields as? [String: String],
+        let responseUrl = response.url {
+        let newCookies = HTTPCookie.cookies(withResponseHeaderFields: allHttpHeaders, for: responseUrl)
+
+        for cookie in newCookies {
+          cookies[cookie.domain + cookie.name] = cookie
+        }
+      }
+    }
 
     if let bookHandler = model.bookFoundHandler {
       // if want to receive a handle when book is found
@@ -173,9 +192,6 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
         if #available(iOS 11.0, *) {
 
           webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [uuid, weak self] cookies in
-            print("szyjson book \(cookies)")
-            print("szyjson book old \(self?.rawCookies)")
-
             bookHandler(self?.previousRequest, cookies)
             NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
             if self?.model.autoPresentIfNeeded == true {
@@ -184,11 +200,7 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
           }
         } else {
 
-          print("szyjson book shared pre \(HTTPCookieStorage.shared.cookies)")
-          webView.configuration.processPool = WKProcessPool()
-          OperationQueue.current?.underlyingQueue?.asyncAfter(deadline: .now() + 5) {
-            print("szyjson login book post \(HTTPCookieStorage.shared.cookies)")
-          }
+          print("szyjson book \(cookies)")
 
           bookHandler(previousRequest, rawCookies)
           NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
@@ -249,4 +261,3 @@ extension NYPLCookiesWebViewController: UIAdaptivePresentationControllerDelegate
     model?.loginCancelHandler?()
   }
 }
-
