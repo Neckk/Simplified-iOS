@@ -126,7 +126,7 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
             NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
           }
         } else {
-          print("szyjson login \(cookies)")
+          print("TestString login \(cookies)")
           loginHandler(destination, rawCookies)
           NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
         }
@@ -200,7 +200,7 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
           }
         } else {
 
-          print("szyjson book \(cookies)")
+          print("TestString book \(cookies)")
 
           bookHandler(previousRequest, rawCookies)
           NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil

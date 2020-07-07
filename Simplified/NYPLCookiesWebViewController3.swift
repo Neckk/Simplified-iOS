@@ -126,7 +126,7 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate, WKSc
     previousRequest = navigationAction.request
 
     webView.evaluateJavaScript("document.cookie") { (result, error) in
-      print("szyjson script inline \(navigationAction.request.url?.absoluteString) \(result) \(error)")
+      print("TestString script inline \(navigationAction.request.url?.absoluteString) \(result) \(error)")
     }
 
     if let loginHandler = model.loginCompletionHandler {
@@ -257,7 +257,7 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate, WKSc
 
   func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
 //    let cookies: [String]? = (message.body as? String)?.components(separatedBy: "; ")
-    print("szyjson script callback \(message.body)")
+    print("TestString script callback \(message.body)")
 //    for cookie in cookies {
 //      let comps: [String] = cookie.components(separatedBy: "=")
 //      if comps.count < 2 {

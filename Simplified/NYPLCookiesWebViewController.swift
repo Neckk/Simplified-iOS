@@ -127,11 +127,11 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
             NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
           }
         } else {
-          print("szyjson login shared pre \(HTTPCookieStorage.shared.cookies)")
+          print("TestString login shared pre \(HTTPCookieStorage.shared.cookies)")
           webView.configuration.processPool = WKProcessPool()
           OperationQueue.current?.underlyingQueue?.asyncAfter(deadline: .now() + 5) {
             // it may take some time to update cookies storage
-            print("szyjson login shared post \(HTTPCookieStorage.shared.cookies)")
+            print("TestString login shared post \(HTTPCookieStorage.shared.cookies)")
           }
 
           loginHandler(destination, rawCookies)
@@ -173,8 +173,8 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
         if #available(iOS 11.0, *) {
 
           webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [uuid, weak self] cookies in
-            print("szyjson book \(cookies)")
-            print("szyjson book old \(self?.rawCookies)")
+            print("TestString book \(cookies)")
+            print("TestString book old \(self?.rawCookies)")
 
             bookHandler(self?.previousRequest, cookies)
             NYPLCookiesWebViewController.automaticBrowserStroage[uuid] = nil
@@ -184,10 +184,10 @@ class NYPLCookiesWebViewController: UIViewController, WKNavigationDelegate {
           }
         } else {
 
-          print("szyjson book shared pre \(HTTPCookieStorage.shared.cookies)")
+          print("TestString book shared pre \(HTTPCookieStorage.shared.cookies)")
           webView.configuration.processPool = WKProcessPool()
           OperationQueue.current?.underlyingQueue?.asyncAfter(deadline: .now() + 5) {
-            print("szyjson login book post \(HTTPCookieStorage.shared.cookies)")
+            print("TestString login book post \(HTTPCookieStorage.shared.cookies)")
           }
 
           bookHandler(previousRequest, rawCookies)
