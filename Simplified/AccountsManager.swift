@@ -196,22 +196,79 @@ private let prodUrlHash = prodUrl.absoluteString.md5().base64EncodedStringUrlSaf
     let targetUrl = NYPLSettings.shared.useBetaLibraries ? betaUrl : prodUrl
     let hash = targetUrl.absoluteString.md5().base64EncodedStringUrlSafe()
       .trimmingCharacters(in: ["="])
-    
+
     let wasAlreadyLoading = addLoadingCompletionHandler(key: hash, completion)
     guard !wasAlreadyLoading else { return }
 
-    NYPLNetworkExecutor.shared.GET(targetUrl) { result in
-      switch result {
-      case .success(let data, _):
-        self.loadAccountSetsAndAuthDoc(fromCatalogData: data, key: hash) { success in
-          self.callAndClearLoadingCompletionHandlers(key: hash, success)
-          NotificationCenter.default.post(name: NSNotification.Name.NYPLCatalogDidLoad, object: nil)
+    let data = """
+    {
+      "catalogs": [
+        {
+          "links": [
+            {
+              "href": "http://cm.hilbertteam.net/SAML/groups",
+              "type": "application/atom+xml;profile=opds-catalog;kind=acquisition",
+              "rel": "http://opds-spec.org/catalog"
+            },
+            {
+              "href": "http://cm.hilbertteam.net/SAML/authentication_document",
+              "type": "application/vnd.opds.authentication.v1.0+json"
+            },
+            {
+              "href": "https://saml.library.org/",
+              "type": "text/html",
+              "rel": "alternate"
+            },
+            {
+              "href": "https://libraryregistry.librarysimplified.org/library/urn:uuid:2853dacf-ed79-42f5-8e8a-a7bb3d1ae6a2/eligibility",
+              "type": "application/geo+json",
+              "rel": "http://librarysimplified.org/rel/registry/eligibility"
+            },
+            {
+              "href": "https://libraryregistry.librarysimplified.org/library/urn:uuid:2853dacf-ed79-42f5-8e8a-a7bb3d1ae6a2/focus",
+              "type": "application/geo+json",
+              "rel": "http://librarysimplified.org/rel/registry/focus"
+            }
+          ],
+          "metadata": {
+            "updated": "2020-05-11T00:00:00Z",
+            "id": "urn:uuid:2853dacf-ed79-42f5-8e8a-a7bb3d1ae6a2",
+            "title": "Saml testbed"
+          }
         }
-      case .failure(let error, _):
-        NYPLErrorLogger.logError(error,
-                                 message: "Catalog failed to load from \(targetUrl)")
-        self.callAndClearLoadingCompletionHandlers(key: hash, false)
+      ],
+      "links": [
+        {
+          "href": "https://libraryregistry.librarysimplified.org/libraries",
+          "type": "application/opds+json",
+          "rel": "self"
+        },
+        {
+          "href": "https://libraryregistry.librarysimplified.org/qa/search",
+          "type": "application/opensearchdescription+xml",
+          "rel": "search"
+        },
+        {
+          "href": "https://libraryregistry.librarysimplified.org/register",
+          "type": "application/opds+json;profile=https://librarysimplified.org/rel/profile/directory",
+          "rel": "register"
+        },
+        {
+          "href": "https://libraryregistry.librarysimplified.org/library/{uuid}",
+          "type": "application/opds+json",
+          "rel": "http://librarysimplified.org/rel/registry/library",
+          "templated": true
+        }
+      ],
+      "metadata": {
+        "adobe_vendor_id": "NYPL",
+        "title": "Libraries"
       }
+    }
+    """.data(using: .utf8)!
+    self.loadAccountSetsAndAuthDoc(fromCatalogData: data, key: hash) { success in
+      self.callAndClearLoadingCompletionHandlers(key: hash, success)
+      NotificationCenter.default.post(name: NSNotification.Name.NYPLCatalogDidLoad, object: nil)
     }
   }
   
